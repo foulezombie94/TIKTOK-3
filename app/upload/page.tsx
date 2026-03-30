@@ -41,6 +41,10 @@ export default function UploadPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0]
     if (selected) {
+      if (!['video/mp4', 'video/webm'].includes(selected.type)) {
+        toast.error('Format non supporté. MP4 ou WebM uniquement.')
+        return
+      }
       if (selected.size > 50 * 1024 * 1024) {
         toast.error('La vidéo ne doit pas dépasser 50 Mo')
         return

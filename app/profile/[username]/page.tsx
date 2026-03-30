@@ -108,16 +108,16 @@ export default function ProfilePage() {
   const loadVideos = async (tab: Tab, targetUserId: string) => {
     setActiveTab(tab)
     if (tab === Tab.POSTS) {
-      const { data } = await supabase.from('videos').select('id, video_url, views_count').eq('user_id', targetUserId).order('created_at', { ascending: false })
+      const { data } = await supabase.from('videos').select('id, video_url, views_count').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(15)
       setVideos(data || [])
     } else if (tab === Tab.LIKES) {
-      const { data } = await supabase.from('likes').select('video_id, videos(id, video_url, views_count)').eq('user_id', targetUserId).order('created_at', { ascending: false })
+      const { data } = await supabase.from('likes').select('video_id, videos(id, video_url, views_count)').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(15)
       if (data) {
         // PERF: filter(Boolean) protects against videos that were deleted by creator but still technically liked in DB
         setVideos(data.map((d: { videos: any }) => d.videos).filter(Boolean))
       }
     } else if (tab === Tab.BOOKMARKS) {
-      const { data } = await supabase.from('bookmarks').select('video_id, videos(id, video_url, views_count)').eq('user_id', targetUserId).order('created_at', { ascending: false })
+      const { data } = await supabase.from('bookmarks').select('video_id, videos(id, video_url, views_count)').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(15)
       if (data) {
         setVideos(data.map((d: { videos: any }) => d.videos).filter(Boolean))
       }

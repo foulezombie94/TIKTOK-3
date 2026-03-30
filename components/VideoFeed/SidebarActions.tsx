@@ -23,7 +23,11 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
   const [isLiked, setIsLiked] = useState(initialLiked)
   const [likesCount, setLikesCount] = useState(initialLikesCount)
   const [isSaved, setIsSaved] = useState(initialSaved)
-  const [isFollowing, setIsFollowing] = useState(initialFollowing)
+  const followedUsers = useStore((s: any) => s.followedUsers)
+  const setFollowedUser = useStore((s: any) => s.setFollowedUser)
+  
+  const isFollowing = followedUsers[video.user_id] ?? initialFollowing
+
   const setShowAuthModal = useStore((s: any) => s.setShowAuthModal)
 
   const handleLike = async () => {
@@ -72,7 +76,7 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
        return
      }
      const newState = !isFollowing
-     setIsFollowing(newState)
+     setFollowedUser(video.user_id, newState)
      try {
         if (newState) {
            await supabase.from('follows').insert({ follower_id: currentUserId, following_id: video.user_id })
@@ -80,7 +84,7 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
            await supabase.from('follows').delete().eq('follower_id', currentUserId).eq('following_id', video.user_id)
         }
      } catch {
-        setIsFollowing(!newState)
+        setFollowedUser(video.user_id, !newState) // revert on error
      }
   }
 

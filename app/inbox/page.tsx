@@ -43,7 +43,7 @@ export default function InboxPage() {
     // Notifications
     const { data: notifData } = await supabase
       .from('notifications')
-      .select(`*, actor:users(*)`)
+      .select(`*, actor:users!notifications_actor_id_fkey(*)`)
       .eq('user_id', currentUser.id)
       .order('created_at', { ascending: false })
     

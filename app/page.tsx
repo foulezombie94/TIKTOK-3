@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import VideoPlayer from '@/components/VideoFeed/VideoPlayer'
@@ -58,6 +58,10 @@ export default function HomePage() {
 
   const currentUser = useStore((s: any) => s.currentUser)
   const isAuthLoading = useStore((s: any) => s.isAuthLoading)
+
+  const VIEW_DURATION_MS = 2000;
+  const viewTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const trackedVideosRef = useRef<Set<string>>(new Set());
 
   const WINDOW_SIZE = 1 
 
@@ -118,7 +122,9 @@ export default function HomePage() {
   }, [page, isLoadingMore, hasMore, fetchVideosBatch])
 
   const trackVideoView = async (videoId: string) => {
-    if (!currentUser) return
+    if (!currentUser || trackedVideosRef.current.has(videoId)) return;
+    
+    trackedVideosRef.current.add(videoId);
     await supabase.from('video_views').upsert({
       user_id: currentUser.id,
       video_id: videoId
@@ -126,12 +132,24 @@ export default function HomePage() {
   }
 
   const handleInView = useCallback((index: number, inView: boolean) => {
+    const videoId = videos[index]?.id;
+    if (!videoId) return;
+
     if (inView) {
       setActiveIndex(index)
-      if (videos[index]) trackVideoView(videos[index].id)
       
+      // Valider la vue après X secondes
+      viewTimeoutsRef.current[videoId] = setTimeout(() => {
+         trackVideoView(videoId);
+      }, VIEW_DURATION_MS);
+
       if (index >= videos.length - 2) {
         loadMoreVideos()
+      }
+    } else {
+      // Annuler si l'utilisateur scrolle trop vite
+      if (viewTimeoutsRef.current[videoId]) {
+        clearTimeout(viewTimeoutsRef.current[videoId]);
       }
     }
   }, [videos, loadMoreVideos, currentUser])

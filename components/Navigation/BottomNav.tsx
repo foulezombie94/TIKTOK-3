@@ -59,7 +59,7 @@ export default function BottomNav() {
           <MessageSquare className={`w-6 h-6 ${pathname === '/inbox' ? 'text-white' : 'text-zinc-500'}`} />
           {totalUnread > 0 && (
             <span className="absolute -top-1 -right-1.5 bg-tiktok-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-black animate-pulse">
-              {totalUnread > 9 ? '9+' : totalUnread}
+              {totalUnread > 99 ? '99+' : totalUnread}
             </span>
           )}
         </div>

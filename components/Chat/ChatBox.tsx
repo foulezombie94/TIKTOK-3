@@ -39,10 +39,10 @@ export default function ChatBox({ conversationId, currentUser, recipient }: Chat
         .in('id', unreadFromOthers.map(m => m.id))
       
       if (!error) {
-        setUnreadMessagesCount(Math.max(0, unreadMessagesCount - unreadFromOthers.length))
+        setUnreadMessagesCount((prev: number) => Math.max(0, prev - unreadFromOthers.length))
       }
     }
-  }, [currentUser.id, unreadMessagesCount, setUnreadMessagesCount])
+  }, [currentUser.id, setUnreadMessagesCount])
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -72,7 +72,11 @@ export default function ChatBox({ conversationId, currentUser, recipient }: Chat
         filter: `conversation_id=eq.${conversationId}`
       }, (payload) => {
         const newMessage = payload.new as Message
-        setMessages(prev => [...prev, newMessage])
+        setMessages(prev => {
+          // Éviter les doublons (Optimistic UI) si le message existe déjà
+          if (prev.some(m => m.id === newMessage.id)) return prev;
+          return [...prev, newMessage];
+        })
         
         // Si on est dans le chat, on marque comme lu immédiatement
         if (newMessage.sender_id !== currentUser.id) {
@@ -86,7 +90,8 @@ export default function ChatBox({ conversationId, currentUser, recipient }: Chat
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [conversationId, markMessagesAsRead, currentUser.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, currentUser.id])
 
   const scrollToBottom = () => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -100,14 +105,32 @@ export default function ChatBox({ conversationId, currentUser, recipient }: Chat
     const content = newComment.trim()
     setNewComment('')
 
-    const { error } = await supabase.from('messages').insert({
+    // Faux message (Optimistic UI)
+    const tempId = `temp-${Date.now()}`
+    const tempMessage: Message = {
+      id: tempId,
+      content,
+      sender_id: currentUser.id,
+      created_at: new Date().toISOString(),
+      read: true
+    }
+    setMessages(prev => [...prev, tempMessage])
+    setTimeout(() => scrollToBottom(), 50)
+
+    const { data, error } = await supabase.from('messages').insert({
       conversation_id: conversationId,
       sender_id: currentUser.id,
       content
-    })
+    }).select().single()
 
     if (error) {
+       // Revert
+       setMessages(prev => prev.filter(m => m.id !== tempId))
        setNewComment(content)
+       import('react-hot-toast').then(toast => toast.default.error("Échec de l'envoi du message"))
+    } else if (data) {
+       // Remplacer le faux message par le vrai
+       setMessages(prev => prev.map(m => m.id === tempId ? data : m))
     }
     setSending(false)
   }

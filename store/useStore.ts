@@ -23,6 +23,10 @@ interface StoreState {
   setUnreadMessagesCount: (count: number) => void
   unreadNotificationsCount: number
   setUnreadNotificationsCount: (count: number) => void
+  
+  // Cache global pour les abonnements
+  followedUsers: Record<string, boolean>
+  setFollowedUser: (userId: string, isFollowing: boolean) => void
 }
 
 export const useStore = create<StoreState>()(
@@ -41,6 +45,12 @@ export const useStore = create<StoreState>()(
       setUnreadMessagesCount: (unreadMessagesCount) => set({ unreadMessagesCount }),
       unreadNotificationsCount: 0,
       setUnreadNotificationsCount: (unreadNotificationsCount) => set({ unreadNotificationsCount }),
+      
+      followedUsers: {},
+      setFollowedUser: (userId, isFollowing) => 
+        set((state) => ({
+          followedUsers: { ...state.followedUsers, [userId]: isFollowing }
+        })),
     }),
     {
       name: 'tiktok-storage',
