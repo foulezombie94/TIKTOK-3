@@ -1,11 +1,22 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
+import { updateSession } from '@/utils/supabase/middleware'
+import { createServerClient } from '@supabase/ssr'
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
+  // Rafraîchir dynamiquement les cookies de session pour les requêtes RSC
+  const res = await updateSession(req)
   
+  // Utilisation d'un client temporaire uniquement pour lire le statut Auth depuis le Request
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return req.cookies.getAll() }
+      }
+    }
+  )
+
   const { data: { session } } = await supabase.auth.getSession()
 
   // Protection absolue de l'espace /admin

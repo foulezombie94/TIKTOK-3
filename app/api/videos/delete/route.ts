@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/utils/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase-admin' // Requiert la clé service_role
 
 // Route /api/videos/delete pour régler le problème des "Fichiers Orphelins"
 export async function DELETE(req: Request) {
   try {
-    const supabaseUser = createRouteHandlerClient({ cookies })
+    const supabaseUser = createClient()
     const { data: { session } } = await supabaseUser.auth.getSession()
 
     if (!session) {
