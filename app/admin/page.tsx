@@ -33,7 +33,7 @@ export default async function AdminPanel() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-            {reports?.map((report: any) => (
+            {reports?.map((report) => (
                 <div key={report.id} className="bg-zinc-900 border border-red-900/30 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/60 transition-colors">
                     <div className="flex flex-col">
                         <span className="text-red-500 font-bold text-sm mb-1 uppercase tracking-wide">Signalement : {report.reason}</span>

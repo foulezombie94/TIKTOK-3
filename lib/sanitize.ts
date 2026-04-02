@@ -1,41 +1,20 @@
-/**
- * Input Sanitization Utilities — Pilier 3: Sécurité (v2 - Hardcore)
- * 
- * - HTML entity escaping (not stripping) to preserve user intent
- * - Strict UUID v4 validation
- * - PII redaction for logs
- * - Magic byte validation for uploads
- */
+import DOMPurify from 'isomorphic-dompurify'
 
 // =============================================
 // TEXT SANITIZATION
 // =============================================
 
-/**
- * Sanitize user-generated text content (comments, captions, bios).
- * Uses HTML entity ESCAPING instead of stripping to preserve content like "2 < 3".
- * Removes dangerous patterns (javascript:, onXXX= handlers).
- */
 export function sanitizeText(input: string, maxLength = 500): string {
   if (!input || typeof input !== 'string') return ''
   
-  return input
-    // Step 1: Escape HTML entities (preserve user intent, prevent XSS)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    // Step 2: Remove dangerous URI schemes
-    .replace(/javascript\s*:/gi, '')
-    .replace(/data\s*:\s*text\/html/gi, '')
-    .replace(/vbscript\s*:/gi, '')
-    // Step 3: Remove event handler attributes (onload=, onclick=, etc.)
-    .replace(/on\w+\s*=/gi, '')
-    // Step 4: Normalize whitespace
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, maxLength)
+  // Use DOMPurify for robust, industry-standard sanitization
+  // This handles Unicode, Hex, and complex XSS vectors that regex misses
+  const clean = DOMPurify.sanitize(input, {
+    ALLOWED_TAGS: [], // No HTML allowed in captions/bios/comments
+    ALLOWED_ATTR: [],
+  })
+
+  return clean.trim().slice(0, maxLength)
 }
 
 /**

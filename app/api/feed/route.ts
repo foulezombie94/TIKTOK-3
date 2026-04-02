@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     }
 
     // === Cache with anti-stampede (shared key for anon) ===
-    const cacheKey = CacheKeys.feedPage(userId || 'anon', cursor || 'latest')
+    const cacheKey = CacheKeys.feedPage(userId || 'anon', cursor || 'latest', limit)
 
     const data = await feedCache.getOrSet(
       cacheKey,

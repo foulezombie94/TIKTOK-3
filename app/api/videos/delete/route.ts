@@ -14,32 +14,40 @@ export async function DELETE(req: Request) {
 
     const { videoId } = await req.json()
 
-    // 1. Vérification sécurisée du propriétaire de la vidéo
+    // 1. Vérification sécurisée : Propriétaire ou Admin
     const { data: videoData, error: fetchError } = await supabaseUser
       .from('videos')
       .select('id, user_id, video_url')
       .eq('id', videoId)
       .single()
 
-    if (fetchError || !videoData || videoData.user_id !== session.user.id) {
-      return NextResponse.json({ error: 'Vidéo introuvable ou vous n\'en êtes pas le propriétaire' }, { status: 403 })
+    const isAdmin = session.user.app_metadata?.role === 'admin' 
+      || session.user.user_metadata?.role === 'admin'
+
+    if (fetchError || !videoData || (videoData.user_id !== session.user.id && !isAdmin)) {
+      return NextResponse.json({ error: 'Vidéo introuvable ou droits insuffisants' }, { status: 403 })
     }
 
-    // Extraction du filePath à partir de l'URL Supabase
-    // Exemple d'URL : https://xxx.supabase.co/storage/v1/object/public/videos/username/filename.mp4
-    const urlParts = videoData.video_url.split('/videos/')
-    if (urlParts.length !== 2) throw new Error("Format d'URL de vidéo invalide")
-    const filePath = urlParts[1]
+    // Extraction du filePath à partir de l'URL Supabase de manière robuste
+    // URL format: https://.../storage/v1/object/public/videos/username/filename.mp4
+    let filePath: string
+    try {
+      const url = new URL(videoData.video_url)
+      // On récupère le chemin relatif après /public/videos/
+      const pathSegments = url.pathname.split('/videos/')
+      if (pathSegments.length < 2) throw new Error("Format d'URL invalide")
+      filePath = pathSegments[pathSegments.length - 1]
+    } catch (e) {
+      throw new Error(`Erreur lors du parsing de l'URL: ${videoData.video_url}`)
+    }
 
-    // 2. SUPPRESSION DU BUCKET STORAGE EN PREMIER (Faille résolue)
-    // Nous utilisons un admin client ou supabase_service_role pour contourner les règles potentiellement restrictives.
-    const { error: storageError } = await supabaseUser.storage
+    // 2. SUPPRESSION DU BUCKET STORAGE (Utilisation obligée de supabaseAdmin pour bypass RLS)
+    const { error: storageError } = await supabaseAdmin.storage
       .from('videos')
       .remove([filePath])
 
     if (storageError) {
-      console.error("Erreur de nettoyage Storage:", storageError)
-      // On continue quand même la suppression DB ou on stoppe selon sa stratégie
+      console.error("Erreur de nettoyage Storage (Fichier peut-être déjà absent):", storageError)
     }
 
     // 3. Suppression dans la base PostgreSQL (Cela 'cascade' sur les commentaires/likes/bookmarks)

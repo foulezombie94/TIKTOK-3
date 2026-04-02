@@ -168,10 +168,10 @@ export const CacheKeys = {
   videoMeta: (videoId: string) => `video:${videoId}:meta`,
   userProfile: (userId: string) => `user:${userId}:profile`,
   userByUsername: (username: string) => `user:username:${username}`,
-  feedPage: (userId: string, cursor: string) => {
+  feedPage: (userId: string, cursor: string, limit: number) => {
     // Optimization: share cache key for anonymous and non-personalized feeds
     const normalizedUser = (!userId || userId === '00000000-0000-0000-0000-000000000000') ? 'anon' : userId
-    return `feed:${normalizedUser}:${cursor}`
+    return `feed:${normalizedUser}:${cursor}:${limit}`
   },
   videoLikes: (videoId: string) => `video:${videoId}:likes`,
   videoComments: (videoId: string) => `video:${videoId}:comments`,

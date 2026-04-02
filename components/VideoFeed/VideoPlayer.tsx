@@ -88,26 +88,22 @@ function VideoPlayer({ video, index, activeIndex, onInView }: VideoPlayerProps) 
     const timeSinceLastTap = now - lastTapRef.current
     lastTapRef.current = now
 
+    // Double tap detection (doesn't block single tap)
     if (timeSinceLastTap < 300) {
       handleDoubleTap(e)
       return
     }
 
-    const timer = setTimeout(() => {
-      if (Date.now() - lastTapRef.current >= 280) {
-        const vid = videoRef.current
-        if (!vid) return
-        if (vid.paused) {
-          vid.play().catch(() => setIsPaused(true))
-          setIsPaused(false)
-        } else {
-          vid.pause()
-          setIsPaused(true)
-        }
-      }
-      timeoutRefs.current.delete(timer)
-    }, 300)
-    timeoutRefs.current.add(timer)
+    // Single tap: Toggle play/pause INSTANTLY (no 300ms delay)
+    const vid = videoRef.current
+    if (!vid) return
+    if (vid.paused) {
+      vid.play().catch(() => setIsPaused(true))
+      setIsPaused(false)
+    } else {
+      vid.pause()
+      setIsPaused(true)
+    }
   }
 
   const handleDoubleTap = async (e: React.MouseEvent<HTMLDivElement>) => {

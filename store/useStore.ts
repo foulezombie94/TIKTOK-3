@@ -54,7 +54,11 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'tiktok-storage',
-      partialize: (state) => ({ isMuted: state.isMuted }),
+      partialize: (state) => ({ 
+        isMuted: state.isMuted,
+        currentUser: state.currentUser,
+        followedUsers: state.followedUsers,
+      }),
     }
   )
 )

@@ -43,7 +43,7 @@ export const getHardwareId = (): string => {
   const hashedId = `HWV5_${btoa(unescape(encodeURIComponent(rawId.slice(0, 150)))).replace(/[/+=]/g, '').slice(0, 32)}`
   
   // Stockage définitif (Cookie + LocalStorage)
-  document.cookie = `_tk_dev_id=${hashedId}; path=/; max-age=315360000; SameSite=Lax`
+  document.cookie = `_tk_dev_id=${hashedId}; path=/; max-age=315360000; SameSite=Lax; Secure`
   localStorage.setItem('_tk_dev_id', hashedId)
   
   return hashedId

@@ -32,35 +32,21 @@ export async function updateSession(request: NextRequest) {
   // Rafraîchir la session via Auth
   const { data: { user } } = await supabase.auth.getUser()
 
-  // 2. BAN ENFORCEMENT INVULNÉRABLE (Bypass RLS via Service Role)
+  // 2. BAN ENFORCEMENT INSTANTANÉ (Via JWT Custom Claims — Zéro DB hit)
   if (user) {
     const isBannedPage = request.nextUrl.pathname.startsWith('/banned')
     
     if (!isBannedPage) {
-      // Client Admin (Privilégié) - Ne pas exposer au client, s'exécute côté Edge/Serveur uniquement
-      const adminSupabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { auth: { persistSession: false } }
-      )
+      // Lecture ultra-rapide des claims injectés par le Trigger SQL 'trg_sync_user_metadata'
+      const status = (user.app_metadata?.status as string) || 'active'
+      const banReason = (user.app_metadata?.ban_reason as string) || ''
 
-      const { data: userData, error: userError } = await adminSupabase
-        .from('users')
-        .select('status, ban_reason')
-        .eq('id', user.id)
-        .single()
-
-      if (userError) {
-        console.error(`[BAN ERROR] Failed to fetch status for ${user.id}: ${userError.message}`);
-      }
-
-      const currentStatus = userData?.status?.toLowerCase();
-      if (userData && currentStatus === 'banned') {
-        console.warn(`[BAN ENFORCED] Blocking user ${user.id} (Status: ${userData.status})`);
+      if (status.toLowerCase() === 'banned') {
+        console.warn(`[BAN ENFORCED] Blocking user ${user.id} via JWT Claims`);
         const url = request.nextUrl.clone()
         url.pathname = '/banned'
-        if (userData.ban_reason) {
-          url.searchParams.set('reason', userData.ban_reason)
+        if (banReason) {
+          url.searchParams.set('reason', banReason)
         }
         return NextResponse.redirect(url)
       }

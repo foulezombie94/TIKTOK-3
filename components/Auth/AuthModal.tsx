@@ -78,8 +78,17 @@ export default function AuthModal() {
           setLoading(false)
         }, 1500)
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Une erreur est survenue")
+    } catch (err: any) {
+      // Handle specific Supabase/PostgreSQL errors (like unique constraint violation)
+      const message = err?.message || "Une erreur est survenue"
+      
+      if (message.includes('unique_username') || message.includes('already exists')) {
+        toast.error('Ce nom d\'utilisateur est déjà pris')
+      } else if (message.includes('rate limit')) {
+        toast.error('Trop de tentatives. Veuillez patienter.')
+      } else {
+        toast.error(message)
+      }
       setLoading(false)
     }
   }
