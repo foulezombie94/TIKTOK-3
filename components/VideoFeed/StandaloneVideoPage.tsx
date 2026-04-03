@@ -1,3 +1,5 @@
+'use client'
+
 import { useRouter } from 'next/navigation'
 import { FeedVideo } from '@/types/video'
 import VideoDetail from './VideoDetail'
