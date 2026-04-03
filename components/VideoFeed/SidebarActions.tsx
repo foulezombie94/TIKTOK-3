@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store/useStore'
 import toast from 'react-hot-toast'
 import { FeedVideo } from '@/app/page'
+import ShareSheet from './ShareSheet'
 
 interface SidebarActionsProps {
   video: FeedVideo
@@ -23,6 +24,9 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
   const [isLiked, setIsLiked] = useState(initialLiked)
   const [likesCount, setLikesCount] = useState(initialLikesCount)
   const [isSaved, setIsSaved] = useState(initialSaved)
+  const [bookmarksCount, setBookmarksCount] = useState(video.bookmarks_count ?? video.bookmarks?.[0]?.count ?? 0)
+  const [isShareOpen, setIsShareOpen] = useState(false)
+  
   const followedUsers = useStore((s: any) => s.followedUsers)
   const setFollowedUser = useStore((s: any) => s.setFollowedUser)
   
@@ -59,14 +63,31 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
     }
     const newState = !isSaved
     setIsSaved(newState)
+    setBookmarksCount(prev => newState ? prev + 1 : prev - 1)
+
     try {
+      let result;
       if (newState) {
-        await supabase.from('bookmarks').insert({ user_id: currentUserId, video_id: video.id })
+        result = await supabase.from('bookmarks').insert({ user_id: currentUserId, video_id: video.id })
       } else {
-        await supabase.from('bookmarks').delete().eq('user_id', currentUserId).eq('video_id', video.id)
+        result = await supabase.from('bookmarks').delete().eq('user_id', currentUserId).eq('video_id', video.id)
       }
-    } catch {
+      
+      if (result.error) {
+         // CAS CRITIQUE : Si le favori existe déjà (Duplicate Key), on synchronise l'UI en jaune
+         if (result.error.code === '23505') {
+            console.log('Synchronisation forcée : Le favori existe déjà en base.')
+            setIsSaved(true)
+            // On s'assure que le compteur est correct
+            return 
+         }
+         throw new Error(result.error.message)
+      }
+    } catch (err: any) {
+      // On ne revert que si ce n'est pas un problème de doublon
       setIsSaved(!newState)
+      setBookmarksCount(prev => !newState ? prev + 1 : prev - 1)
+      toast.error(`Action impossible: ${err.message}`)
     }
   }
 
@@ -88,26 +109,8 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
      }
   }
 
-  const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/profile/${video.users?.username}` 
-    const shareData = {
-      title: `Vidéo de ${video.users?.username}`,
-      text: video.caption || 'Regarde cette vidéo sur TikTok Clone',
-      url: shareUrl,
-    }
-
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData)
-      } else {
-        await navigator.clipboard.writeText(shareUrl)
-        toast.success('Lien copié dans le presse-papier !')
-      }
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        toast.error('Erreur lors du partage')
-      }
-    }
+  const handleShare = () => {
+    setIsShareOpen(true)
   }
 
   return (
@@ -128,33 +131,48 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
       </div>
 
       {/* Actions */}
-      <button onClick={handleLike} className="flex flex-col items-center gap-1 group active:scale-90 transition-transform">
-        <div className={`p-2 rounded-full transition-colors ${isLiked ? 'text-tiktok-pink' : 'text-white'}`}>
-          <Heart fill={isLiked ? "currentColor" : "none"} className="w-8 h-8 drop-shadow-lg" />
+      <div className="flex flex-col gap-4 items-center">
+        <div className="flex flex-col items-center">
+          <button onClick={handleLike} className="flex flex-col items-center group">
+            <div className={`p-2 rounded-full transition-all duration-300 ${isLiked ? 'text-tiktok-pink scale-110' : 'text-white group-hover:bg-zinc-800'}`}>
+              <Heart fill={isLiked ? "currentColor" : "none"} className="w-7 h-7 drop-shadow-lg" />
+            </div>
+            <span className="text-xs font-semibold drop-shadow-md">{likesCount}</span>
+          </button>
         </div>
-        <span className="text-xs font-semibold drop-shadow-md">{likesCount}</span>
-      </button>
 
-      <button onClick={onCommentClick} className="flex flex-col items-center gap-1 group active:scale-90 transition-transform text-white">
-        <div className="p-2 rounded-full">
-          <MessageCircle fill="none" className="w-8 h-8 drop-shadow-lg" />
+        <div className="flex flex-col items-center">
+          <button onClick={onCommentClick} className="flex flex-col items-center group">
+            <div className="p-2 rounded-full text-white group-hover:bg-zinc-800 transition-colors">
+              <MessageCircle fill="currentColor" className="w-7 h-7 drop-shadow-lg" />
+            </div>
+            <span className="text-xs font-semibold drop-shadow-md">{video.comments_count ?? video.comments?.[0]?.count ?? 0}</span>
+          </button>
         </div>
-        <span className="text-xs font-semibold drop-shadow-md">{video.comments_count ?? video.comments?.[0]?.count ?? 0}</span>
-      </button>
 
-      <button onClick={handleSave} className="flex flex-col items-center gap-1 group active:scale-90 transition-transform">
-        <div className={`p-2 rounded-full transition-colors ${isSaved ? 'text-yellow-400' : 'text-white'}`}>
-          <Bookmark fill={isSaved ? "currentColor" : "none"} className="w-8 h-8 drop-shadow-lg" />
+        <div className="flex flex-col items-center">
+          <button onClick={handleSave} className="flex flex-col items-center group">
+            {/* Jaune TikTok si actif, Gris zinc-400 si inactif */}
+            <div className={`p-2 rounded-full transition-all duration-300 ${isSaved ? 'text-[#FACE15] scale-115' : 'text-zinc-400 group-hover:bg-zinc-800'}`}>
+              <Bookmark fill={isSaved ? "currentColor" : "none"} className="w-7 h-7 drop-shadow-lg" />
+            </div>
+            <span className="text-xs font-semibold drop-shadow-md text-white">{bookmarksCount}</span>
+          </button>
         </div>
-        <span className="text-xs font-semibold drop-shadow-md">{video.bookmarks_count ?? video.bookmarks?.[0]?.count ?? 0}</span>
-      </button>
 
-      <button onClick={handleShare} className="flex flex-col items-center gap-1 group active:scale-90 transition-transform text-white">
-        <div className="p-2 rounded-full">
-          <Share2 className="w-8 h-8 drop-shadow-lg" />
-        </div>
-        <span className="text-xs font-semibold drop-shadow-md text-[10px]">Partager</span>
-      </button>
+        <button onClick={handleShare} className="flex flex-col items-center gap-1 group active:scale-90 transition-transform text-white">
+          <div className="p-2 rounded-full">
+            <Share2 className="w-8 h-8 drop-shadow-lg" />
+          </div>
+          <span className="text-xs font-semibold drop-shadow-md text-[10px]">Partager</span>
+        </button>
+      </div>
+
+      <ShareSheet 
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        video={video as any}
+      />
     </div>
   )
 }

@@ -71,61 +71,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true })
     }
 
-    log.info(`Processing coin credit`, { userId, coins })
+    log.info(`Processing coin credit via Transactional RPC`, { userId, coins })
 
     try {
-      // Upsert wallet: Create if not exists, otherwise add coins
-      const { error: walletError } = await supabaseAdmin
-        .from('wallets')
-        .upsert(
-          { user_id: userId, balance: coins },
-          { onConflict: 'user_id' }
-        )
-
-      if (walletError) {
-        // Fallback: Try RPC or manual update
-        const { error: updateError } = await supabaseAdmin.rpc('credit_wallet', {
-          p_user_id: userId,
-          p_amount: coins
-        })
-
-        if (updateError) {
-          // Final fallback: direct update + insert pattern
-          const { data: existingWallet } = await supabaseAdmin
-            .from('wallets')
-            .select('balance')
-            .eq('user_id', userId)
-            .single()
-
-          if (existingWallet) {
-            await supabaseAdmin
-              .from('wallets')
-              .update({ balance: existingWallet.balance + coins })
-              .eq('user_id', userId)
-          } else {
-            await supabaseAdmin
-              .from('wallets')
-              .insert({ user_id: userId, balance: coins })
-          }
-        }
-      }
-
-      // Record the transaction
-      await supabaseAdmin.from('transactions').insert({
-        sender_id: null, // System (purchase)
-        receiver_id: userId,
-        amount: coins,
-        type: 'purchase',
-        video_id: null,
+      const { error: rpcError } = await supabaseAdmin.rpc('process_coin_purchase', {
+        p_user_id: userId,
+        p_amount: coins,
+        p_stripe_session_id: session.id
       })
 
-      log.info(`Successfully credited ${coins} coins to user ${userId}`, { 
+      if (rpcError) throw rpcError
+
+      log.info(`Successfully processed transaction for user ${userId}`, { 
         userId, coins, stripeSessionId: session.id 
       })
     } catch (err) {
-      log.error(`Failed to credit coins`, err as Error, { userId, coins })
-      // Return 200 anyway to prevent Stripe retry loops
-      // The failed operation will be logged and can be reconciled
+      log.error(`Failed to execute coin purchase transaction`, err as Error, { userId, coins })
+      return NextResponse.json({ error: 'Échec de la transaction' }, { status: 500 })
     }
   }
 

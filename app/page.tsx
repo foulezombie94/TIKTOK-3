@@ -51,7 +51,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [commentVideoId, setCommentVideoId] = useState<string | null>(null)
   
-  const [page, setPage] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [nextCursorId, setNextCursorId] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const VIDEOS_PER_PAGE = 6
@@ -65,31 +66,25 @@ export default function HomePage() {
 
   const WINDOW_SIZE = 1 
 
-  const fetchVideosBatch = useCallback(async (pageNumber: number) => {
-    // Phase finale : Appel RPC unifié (Zéro boucle JS côté client)
+  const fetchVideosBatch = useCallback(async (cursor: string | null, cursorId: string | null) => {
+    // Phase Production : Appel RPC par Curseur (Déterministe et performant)
     const { data: vidsData, error } = await supabase.rpc('get_fyp_videos', {
       p_user_id: currentUser?.id || '00000000-0000-0000-0000-000000000000',
-      p_offset: pageNumber * VIDEOS_PER_PAGE,
+      p_cursor: cursor,
+      p_cursor_id: cursorId,
       p_limit: VIDEOS_PER_PAGE
     })
 
-    if (error || !vidsData) {
-      // Fallback si la fonction RPC n'est pas mise à jour
-      const { data: fallbackData } = await supabase
-        .from('videos')
-        .select(`*, users (id, username, display_name, avatar_url), likes (count), comments (count), bookmarks (count)`)
-        .order('created_at', { ascending: false })
-        .range(pageNumber * VIDEOS_PER_PAGE, (pageNumber + 1) * VIDEOS_PER_PAGE - 1)
-      
-      return (fallbackData as unknown as FeedVideo[]) || []
+    if (error) {
+      console.error('Feed RPC failure:', error)
+      return []
     }
 
-    if (vidsData.length === 0) {
+    if (!vidsData || vidsData.length === 0) {
       setHasMore(false)
       return []
     }
 
-    // Avec la nouvelle RPC, vidsData contient déjà user_has_liked, user_has_saved, user_is_following
     return vidsData as unknown as FeedVideo[]
   }, [currentUser])
 
@@ -99,9 +94,14 @@ export default function HomePage() {
 
     const initLoad = async () => {
       setLoading(true)
-      const initialVideos = await fetchVideosBatch(0)
+      const initialVideos = await fetchVideosBatch(null, null)
       if (isMounted) {
         setVideos(initialVideos)
+        if (initialVideos.length > 0) {
+          const lastVideo = initialVideos[initialVideos.length - 1]
+          setNextCursor(lastVideo.created_at)
+          setNextCursorId(lastVideo.id)
+        }
         setLoading(false)
       }
     }
@@ -111,15 +111,17 @@ export default function HomePage() {
   }, [currentUser, isAuthLoading, fetchVideosBatch])
 
   const loadMoreVideos = useCallback(async () => {
-    if (isLoadingMore || !hasMore) return
+    if (isLoadingMore || !hasMore || !nextCursor) return
     setIsLoadingMore(true)
-    const nextVideos = await fetchVideosBatch(page + 1)
+    const nextVideos = await fetchVideosBatch(nextCursor, nextCursorId)
     if (nextVideos.length > 0) {
       setVideos(prev => [...prev, ...nextVideos])
-      setPage(p => p + 1)
+      const lastVideo = nextVideos[nextVideos.length - 1]
+      setNextCursor(lastVideo.created_at)
+      setNextCursorId(lastVideo.id)
     }
     setIsLoadingMore(false)
-  }, [page, isLoadingMore, hasMore, fetchVideosBatch])
+  }, [nextCursor, nextCursorId, isLoadingMore, hasMore, fetchVideosBatch])
 
   const trackVideoView = async (videoId: string) => {
     if (!currentUser || trackedVideosRef.current.has(videoId)) return;

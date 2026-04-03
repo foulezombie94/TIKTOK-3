@@ -18,6 +18,7 @@ export default function UploadPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [caption, setCaption] = useState('')
   const [musicName, setMusicName] = useState('Son original')
+  const [isPrivate, setIsPrivate] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
 
@@ -77,8 +78,8 @@ export default function UploadPage() {
     try {
       const fileExt = file.name.split('.').pop()
       // Security: use native crypto instead of Math.random
-      const fileName = `${currentUser.id}-${crypto.randomUUID()}.${fileExt}`
-      const filePath = `videos/${fileName}`
+      const fileName = `${crypto.randomUUID()}.${fileExt}`
+      const filePath = `${currentUser.id}/${fileName}`
 
       setProgress(40)
 
@@ -105,7 +106,8 @@ export default function UploadPage() {
           user_id: currentUser.id,
           video_url: videoUrl,
           caption: sanitizeText(caption, 2000),
-          music_name: sanitizeText(musicName, 100)
+          music_name: sanitizeText(musicName, 100),
+          is_private: isPrivate
         })
 
       if (dbError) throw dbError
@@ -202,6 +204,25 @@ export default function UploadPage() {
               className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-tiktok-pink"
               disabled={uploading}
             />
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-zinc-900 border border-zinc-700 rounded-lg">
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-tiktok-pink" />
+                Vidéo privée
+              </span>
+              <span className="text-xs text-zinc-500">Seul vous pourrez voir cette vidéo</span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={isPrivate}
+                onChange={() => setIsPrivate(!isPrivate)}
+              />
+              <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-tiktok-pink"></div>
+            </label>
           </div>
 
           <div className="border-t border-zinc-800 pt-6 mt-2">

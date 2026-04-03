@@ -1,11 +1,20 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store/useStore'
-import { Play, Heart, Bookmark, Settings, LogOut } from 'lucide-react'
+import { Play, Heart, Bookmark, Settings, LogOut, Share2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import SidebarActions from '@/components/VideoFeed/SidebarActions'
+import ShareSheet from '@/components/VideoFeed/ShareSheet'
+
+const CommentSheet = dynamic(() => import('@/components/Comments/CommentSheet'), {
+  ssr: false,
+  loading: () => <div className="fixed inset-0 bg-black/50 z-[150] animate-pulse" />
+})
 
 interface ProfileUser {
   id: string
@@ -19,6 +28,14 @@ interface Video {
   id: string
   video_url: string
   views_count: number
+  caption?: string
+  music_name?: string
+  likes_count?: number
+  comments_count?: number
+  bookmarks_count?: number
+  user_has_liked?: boolean
+  user_has_saved?: boolean
+  slug?: string
 }
 
 enum Tab {
@@ -30,17 +47,23 @@ enum Tab {
 export default function ProfilePage() {
   const { username } = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const videoIdFromQuery = searchParams.get('v')
   
   const currentUser = useStore(s => s.currentUser)
-  const setCurrentUser = useStore(s => s.setCurrentUser)
   const isAuthLoading = useStore(s => s.isAuthLoading)
+  const setCurrentUser = useStore(s => s.setCurrentUser)
 
   const [profile, setProfile] = useState<ProfileUser | null>(null)
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({ followers: 0, following: 0, likes: 0 })
+  const [stats, setStats] = useState({ followers: 0, following: 0, likes: 0, bookmarks: 0 })
   const [videos, setVideos] = useState<Video[]>([])
   const [activeTab, setActiveTab] = useState<Tab>(Tab.POSTS)
   const [isFollowing, setIsFollowing] = useState(false)
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null)
+  const [isTogglePending, setIsTogglePending] = useState(false)
+  const [commentVideoId, setCommentVideoId] = useState<string | null>(null)
+  const [isShareOpen, setIsShareOpen] = useState(false)
 
   const isOwnProfile = profile?.id === currentUser?.id || username === 'me'
 
@@ -61,20 +84,22 @@ export default function ProfilePage() {
 
     setProfile(userData)
 
-    const [followersRes, followingRes, likesRes] = await Promise.all([
+    const [followersRes, followingRes, likesRes, bookmarksRes] = await Promise.all([
       supabase.from('follows').select('follower_id', { count: 'exact' }).eq('following_id', userData.id),
       supabase.from('follows').select('following_id', { count: 'exact' }).eq('follower_id', userData.id),
-      supabase.from('videos').select('likes(count)').eq('user_id', userData.id)
+      supabase.from('videos').select('likes_count').eq('user_id', userData.id),
+      supabase.from('bookmarks').select('id', { count: 'exact' }).eq('user_id', userData.id)
     ])
 
-    const totalLikesReceived = likesRes.data?.reduce((acc: number, curr: { likes: { count: number }[] }) => {
-       return acc + (curr.likes[0]?.count || 0)
+    const totalLikesReceived = likesRes.data?.reduce((acc: number, curr: any) => {
+       return acc + (Number(curr.likes_count) || 0)
     }, 0) || 0
 
     setStats({
       followers: followersRes.count || 0,
       following: followingRes.count || 0,
-      likes: totalLikesReceived
+      likes: totalLikesReceived,
+      bookmarks: bookmarksRes.count || 0
     })
 
     if (currentUser && currentUser.id !== userData.id) {
@@ -91,9 +116,7 @@ export default function ProfilePage() {
   }, [currentUser, router])
 
   useEffect(() => {
-    // SECURITY: Prevent unjustified kicks by waiting for auth check
     if (isAuthLoading) return
-
     let targetUsername = username as string
     if (username === 'me') {
        if (!currentUser) {
@@ -105,30 +128,112 @@ export default function ProfilePage() {
     fetchProfileData(targetUsername)
   }, [username, currentUser, isAuthLoading, fetchProfileData])
 
+  // -- 🎯 DEEP LINKING: Fetch shared video if not in grid
+  useEffect(() => {
+    const fetchSharedVideo = async () => {
+      if (!videoIdFromQuery || selectedVideo?.id === videoIdFromQuery) return
+      
+      const existing = videos.find(v => v.id === videoIdFromQuery)
+      if (existing) {
+        setSelectedVideo(existing)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('videos')
+        .select(`
+           id, video_url, views_count, caption, music_name, created_at,
+           likes_count, comments_count, bookmarks_count, slug,
+           user_has_liked:likes!left(user_id),
+           user_has_saved:bookmarks!left(user_id)
+        `)
+        .eq('id', videoIdFromQuery)
+        .single()
+
+      if (!error && data) {
+        const viewerId = currentUser?.id
+        const formatted = {
+          ...data,
+          user_has_liked: (data.user_has_liked as any)?.some((l: any) => l.user_id === viewerId),
+          user_has_saved: (data.user_has_saved as any)?.some((b: any) => b.user_id === viewerId)
+        }
+        setSelectedVideo(formatted as unknown as Video)
+      }
+    }
+
+    fetchSharedVideo()
+  }, [videoIdFromQuery, videos, currentUser, selectedVideo])
+
   const loadVideos = async (tab: Tab, targetUserId: string) => {
     setActiveTab(tab)
+    const viewerId = currentUser?.id
+
     if (tab === Tab.POSTS) {
-      const { data } = await supabase.from('videos').select('id, video_url, views_count').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(15)
-      setVideos(data || [])
+      const { data } = await supabase
+        .from('videos')
+        .select(`
+           id, video_url, views_count, caption, music_name, created_at,
+           likes_count, comments_count, bookmarks_count, slug,
+           user_has_liked:likes!left(user_id),
+           user_has_saved:bookmarks!left(user_id)
+        `)
+        .eq('user_id', targetUserId)
+        .order('created_at', { ascending: false })
+        .limit(15)
+      
+      const formatted = (data || []).map((v: any) => ({
+        ...v,
+        user_has_liked: v.user_has_liked?.some((l: any) => l.user_id === viewerId),
+        user_has_saved: v.user_has_saved?.some((b: any) => b.user_id === viewerId)
+      }))
+      setVideos(formatted)
     } else if (tab === Tab.LIKES) {
-      const { data } = await supabase.from('likes').select('video_id, videos(id, video_url, views_count)').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(15)
+      const { data, error } = await supabase
+        .from('likes')
+        .select(`
+          video_id, 
+          video:video_id(
+            id, video_url, views_count, caption, music_name, created_at,
+            likes_count, comments_count, bookmarks_count, slug
+          )
+        `)
+        .eq('user_id', targetUserId)
+        .order('created_at', { ascending: false })
+        .limit(15)
+      
       if (data) {
-        // PERF: filter(Boolean) protects against videos that were deleted by creator but still technically liked in DB
-        setVideos(data.map((d: { videos: any }) => d.videos).filter(Boolean))
+        const extracted = data.map((d: any) => d.video).filter(Boolean)
+        setVideos(extracted.map(v => ({ ...v, user_has_liked: true })))
       }
     } else if (tab === Tab.BOOKMARKS) {
-      const { data } = await supabase.from('bookmarks').select('video_id, videos(id, video_url, views_count)').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(15)
+      if (!isOwnProfile) {
+        setVideos([])
+        return
+      }
+      const { data, error } = await supabase
+        .from('bookmarks')
+        .select(`
+          video_id,
+          video:video_id (
+            id, video_url, views_count, caption, music_name, created_at,
+            likes_count, comments_count, bookmarks_count, slug
+          )
+        `)
+        .eq('user_id', targetUserId)
+        .order('created_at', { ascending: false })
+        .limit(15)
       if (data) {
-        setVideos(data.map((d: { videos: any }) => d.videos).filter(Boolean))
+        const extracted = data.map((d: any) => d.video).filter(Boolean)
+        setVideos(extracted.map(v => ({ ...v, user_has_saved: true })))
       }
     }
   }
 
   const toggleFollow = async () => {
-    if (!currentUser || !profile) return
+    if (!currentUser || !profile || isTogglePending) return
+    setIsTogglePending(true)
     const originalState = isFollowing
     setIsFollowing(!isFollowing)
-    
     try {
        if (originalState) {
           await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', profile.id)
@@ -139,6 +244,8 @@ export default function ProfilePage() {
        }
     } catch {
        setIsFollowing(originalState)
+    } finally {
+       setIsTogglePending(false)
     }
   }
 
@@ -153,55 +260,69 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="bg-black min-h-[100dvh] pb-[60px] text-white">
+    <div className="bg-black min-h-[100dvh] pb-[60px] text-white overflow-x-hidden">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-zinc-900 sticky top-0 bg-black/80 backdrop-blur z-10">
+      <div className="flex justify-between items-center p-4 border-b border-zinc-900 sticky top-0 bg-black/80 backdrop-blur z-20">
          <div className="w-8" />
-         <h1 className="font-bold text-lg">{profile.display_name}</h1>
+         <div className="flex-1" /> 
          <div className="w-8 flex justify-end">
             {isOwnProfile ? (
-               <button onClick={handleLogout} className="text-zinc-400 p-1">
+               <button onClick={handleLogout} className="text-zinc-400 p-2 hover:bg-zinc-900 rounded-full transition">
                  <LogOut className="w-5 h-5" />
                </button>
             ) : <Settings className="w-5 h-5 text-transparent" />}
          </div>
       </div>
 
-      <div className="flex flex-col items-center pt-6 px-4">
-         <img src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'} alt="Avatar" className="w-[100px] h-[100px] rounded-full object-cover mb-4 border border-zinc-800" />
-         <h2 className="font-semibold text-xl mb-1 mt-1">@{profile.username}</h2>
-         {profile.bio && <p className="text-sm text-zinc-300 mb-4">{profile.bio}</p>}
-
-         {/* Stats */}
-         <div className="flex gap-8 mb-6 mt-2">
-            <div className="flex flex-col items-center">
-               <span className="font-bold text-[17px]">{stats.following}</span>
-               <span className="text-xs text-zinc-500">Abonnements</span>
+      <div className="flex flex-col items-center pt-10 px-4">
+         <div className="relative mb-4">
+            <img 
+               src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'} 
+               alt="Avatar" 
+               className="w-[96px] h-[96px] rounded-full object-cover border-2 border-zinc-900 ring-2 ring-zinc-800/30" 
+            />
+         </div>
+         
+         <h2 className="font-bold text-xl mb-1 mt-1 tracking-tight text-white">@{profile.username}</h2>
+         {profile.bio && <p className="text-sm text-zinc-400 mb-4 max-w-[80%] text-center">{profile.bio}</p>}
+         
+         <div className="flex justify-center items-center gap-8 mb-8 mt-6 w-full max-w-[320px]">
+            <div className="flex-1 flex flex-col items-center">
+               <span className="font-black text-[18px] leading-tight mb-1">{stats.following}</span>
+               <span className="text-[11px] text-zinc-500 font-medium whitespace-nowrap uppercase tracking-tighter">Abonnements</span>
             </div>
-            <div className="flex flex-col items-center">
-               <span className="font-bold text-[17px]">{stats.followers}</span>
-               <span className="text-xs text-zinc-500">Abonnés</span>
+            <div className="flex-1 flex flex-col items-center border-x border-zinc-900/50">
+               <span className="font-black text-[18px] leading-tight mb-1">{stats.followers}</span>
+               <span className="text-[11px] text-zinc-500 font-medium whitespace-nowrap px-4 uppercase tracking-tighter">Abonnés</span>
             </div>
-            <div className="flex flex-col items-center">
-               <span className="font-bold text-[17px]">{stats.likes}</span>
-               <span className="text-xs text-zinc-500">J&apos;aime</span>
+            <div className="flex-1 flex flex-col items-center">
+               <span className="font-black text-[18px] leading-tight mb-1">{stats.likes}</span>
+               <span className="text-[11px] text-zinc-500 font-medium whitespace-nowrap uppercase tracking-tighter">J'aime</span>
             </div>
          </div>
 
-         {/* Actions */}
          <div className="flex justify-center w-full gap-2 mb-6 max-w-[280px]">
             {isOwnProfile ? (
                <button className="flex-1 py-3 bg-zinc-800 rounded-md font-semibold text-sm hover:bg-zinc-700 w-full transition border border-zinc-700">
                   Modifier le profil
                </button>
             ) : (
-               <button onClick={toggleFollow} className={`flex-1 py-3 rounded-md font-semibold text-sm w-full transition ${isFollowing ? 'bg-zinc-800 border border-zinc-700' : 'bg-tiktok-pink text-white'}`}>
-                  {isFollowing ? 'Message' : 'S&apos;abonner'}
+               <button 
+                  onClick={toggleFollow} 
+                  disabled={isTogglePending}
+                  className={`flex-1 py-3 rounded-md font-semibold text-sm w-full transition ${isTogglePending ? 'opacity-50 cursor-not-allowed' : ''} ${isFollowing ? 'bg-zinc-800 border border-zinc-700' : 'bg-tiktok-pink text-white'}`}
+               >
+                  {isFollowing ? 'Message' : 'S\'abonner'}
                </button>
             )}
+            <button 
+              onClick={() => setIsShareOpen(true)}
+              className="p-3 bg-zinc-800 rounded-md hover:bg-zinc-700 transition border border-zinc-700 active:scale-90"
+            >
+               <Share2 className="w-5 h-5" />
+            </button>
          </div>
 
-         {/* Tabs */}
          <div className="flex w-full mt-4 border-b border-zinc-800">
             <button onClick={() => loadVideos(Tab.POSTS, profile.id)} className={`flex-1 flex justify-center py-3 border-b-2 transition ${activeTab === Tab.POSTS ? 'border-white text-white' : 'border-transparent text-zinc-500'}`}>
                <svg fill="currentColor" width="22" height="22" viewBox="0 0 48 48"><path d="M14 6H34C38.4183 6 42 9.58172 42 14V34C42 38.4183 38.4183 42 34 42H14C9.58172 42 6 38.4183 6 34V14C6 9.58172 9.58172 6 14 6ZM14 10C11.7909 10 10 11.7909 10 14V34C10 36.2091 11.7909 38 14 38H34C36.2091 38 38 36.2091 38 34V14C38 11.7909 36.2091 10 34 10H14ZM18 16V32L32 24L18 16Z"></path></svg>
@@ -217,24 +338,120 @@ export default function ProfilePage() {
          </div>
       </div>
 
-      {/* Grid */}
       <div className="grid grid-cols-3 gap-0.5">
          {videos.map(v => (
-            <div key={v.id} className="aspect-[3/4] bg-zinc-900 border border-zinc-900 relative group cursor-pointer">
-               <video src={v.video_url} className="w-full h-full object-cover" />
-               <div className="absolute inset-0 bg-black/10 transition group-hover:bg-black/40" />
-               <div className="absolute bottom-2 left-2 flex items-center text-white text-xs font-semibold drop-shadow-md z-1">
-                  <Play className="w-3 h-3 mr-1 fill-white" />
+            <div 
+               key={v.id} 
+               onClick={() => setSelectedVideo(v)}
+               className="aspect-[3/4] bg-zinc-900 relative group overflow-hidden border border-zinc-800/10 cursor-pointer"
+            >
+               <video 
+                  src={v.video_url} 
+                  className="w-full h-full object-cover pointer-events-none" 
+               />
+               <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-[11px] font-bold drop-shadow-md">
+                  <Play className="w-3 h-3 fill-current" />
                   {v.views_count}
                </div>
+               <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
          ))}
-         {videos.length === 0 && (
+         {videos.length === 0 && !loading && (
             <div className="col-span-3 py-16 text-center text-zinc-500 text-sm">
                Aucune vidéo disponible
             </div>
          )}
       </div>
+
+      {selectedVideo && profile && (
+         <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center animate-in fade-in zoom-in-95 duration-300 backdrop-blur-xl">
+            <button 
+               onClick={() => {
+                  setSelectedVideo(null)
+                  setCommentVideoId(null)
+               }}
+               className="absolute top-6 left-6 z-[120] p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-xl transition-all hover:scale-110 active:scale-95 border border-white/10"
+            >
+               <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="white" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+               </svg>
+            </button>
+            
+            <div className="relative w-full h-full flex flex-col md:flex-row items-center justify-center max-w-[1000px] mx-auto">
+               <div className="relative w-full h-full md:w-[450px] bg-zinc-950 flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                  <video 
+                     src={selectedVideo.video_url} 
+                     className="w-full h-full object-contain"
+                     autoPlay 
+                     loop 
+                     controls
+                  />
+                  
+                  <div className="absolute bottom-6 left-4 right-16 text-white drop-shadow-xl z-10 pointer-events-none">
+                     <p className="font-bold text-[17px] mb-1">@{profile.username}</p>
+                     <p className="text-sm opacity-90 line-clamp-2 mb-2">{selectedVideo.caption}</p>
+                     <div className="flex items-center gap-2 opacity-80">
+                        <Play className="w-3 h-3 fill-white" />
+                        <span className="text-xs font-semibold">{selectedVideo.music_name}</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="absolute right-2 bottom-[100px] md:relative md:right-0 md:bottom-0 md:ml-4 flex flex-col items-center justify-end md:justify-center p-4">
+                  <SidebarActions 
+                    video={{
+                      id: selectedVideo.id,
+                      user_id: profile.id,
+                      video_url: selectedVideo.video_url,
+                      caption: selectedVideo.caption || '',
+                      music_name: selectedVideo.music_name || 'Original',
+                      views_count: selectedVideo.views_count,
+                      likes_count: selectedVideo.likes_count || 0,
+                      comments_count: selectedVideo.comments_count || 0,
+                      bookmarks_count: selectedVideo.bookmarks_count || 0,
+                      user_has_liked: selectedVideo.user_has_liked || false,
+                      user_has_saved: selectedVideo.user_has_saved || false,
+                      slug: selectedVideo.slug,
+                      created_at: '',
+                      users: {
+                        id: profile.id,
+                        username: profile.username,
+                        display_name: profile.display_name,
+                        avatar_url: profile.avatar_url
+                      }
+                    } as any}
+                    currentUserId={currentUser?.id || null}
+                    onCommentClick={() => setCommentVideoId(selectedVideo.id)}
+                  />
+               </div>
+            </div>
+
+            <div className="absolute inset-0 -z-10" onClick={() => {
+               setSelectedVideo(null)
+               setCommentVideoId(null)
+            }} />
+         </div>
+      )}
+
+      <AnimatePresence>
+        {commentVideoId && (
+          <CommentSheet
+            videoId={commentVideoId}
+            onClose={() => setCommentVideoId(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <ShareSheet 
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        mode="profile"
+        video={{
+          id: profile.id,
+          users: { username: profile.username },
+          caption: `Découvre le profil de @${profile.username} sur TikTok Clone !`
+        } as any}
+      />
     </div>
   )
 }

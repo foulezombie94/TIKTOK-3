@@ -14,6 +14,7 @@ import { feedCache, CacheKeys } from '@/lib/cache'
 import { createLogger, generateCorrelationId, withTiming } from '@/lib/logger'
 import { checkRateLimit, getRateLimitHeaders, buildIdentifier } from '@/lib/rate-limiter'
 import { isValidUUID, isValidISOTimestamp } from '@/lib/sanitize'
+import { type FeedVideoRow } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,15 +37,22 @@ export async function GET(req: NextRequest) {
 
   try {
     const url = new URL(req.url)
+    
+    // === Normalisation pour maximiser le cache-hit (Utilisateurs Anonymes) ===
+    const rawLimit = url.searchParams.get('limit') || '10'
+    const limit = Math.min(Math.max(parseInt(rawLimit) || 10, 1), 20)
+    
     const rawCursor = url.searchParams.get('cursor') || null
     const rawCursorId = url.searchParams.get('cursor_id') || null
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '10') || 10, 1), 20)
     const rawUserId = url.searchParams.get('user_id') || null
 
     // === Strict parameter validation ===
     const cursor = rawCursor && isValidISOTimestamp(rawCursor) ? rawCursor : null
     const cursorId = rawCursorId && isValidUUID(rawCursorId) ? rawCursorId : null
     const userId = rawUserId && isValidUUID(rawUserId) ? rawUserId : null
+
+    // Normalisation du curseur pour les visiteurs (évite la fragmentation par des millisecondes aléatoires)
+    const normalizedCursor = !userId && !cursor ? 'latest' : (cursor || 'latest')
 
     if (rawCursor && !cursor) {
       return NextResponse.json({ error: 'Invalid cursor format' }, { status: 400 })
@@ -54,18 +62,18 @@ export async function GET(req: NextRequest) {
     }
 
     // === Cache with anti-stampede (shared key for anon) ===
-    const cacheKey = CacheKeys.feedPage(userId || 'anon', cursor || 'latest', limit)
+    const cacheKey = CacheKeys.feedPage(userId || 'anon', normalizedCursor, limit)
 
     const data = await feedCache.getOrSet(
       cacheKey,
       async () => {
         const supabase = createClient()
 
-        // Try RPC first with timing
         const result = await withTiming('feed_rpc', async () => {
-          return supabase.rpc('get_fyp_videos', {
+          return (supabase as any).rpc('get_fyp_videos_cursor', {
             p_user_id: userId || '00000000-0000-0000-0000-000000000000',
-            p_offset: 0,
+            p_cursor: cursor,
+            p_cursor_id: cursorId,
             p_limit: limit,
           })
         }, log)
@@ -83,7 +91,7 @@ export async function GET(req: NextRequest) {
           }, log)
 
           if (fallback.error) throw new Error(fallback.error.message)
-          return fallback.data || []
+          return (fallback.data as unknown as FeedVideoRow[]) || []
         }
 
         return result.data
@@ -92,9 +100,9 @@ export async function GET(req: NextRequest) {
     )
 
     const durationMs = Date.now() - start
-    log.info('Feed served', { durationMs, count: (data as any[]).length })
+    const videos = data as FeedVideoRow[]
+    log.info('Feed served', { durationMs, count: videos.length })
 
-    const videos = data as any[]
     const lastVideo = videos.length > 0 ? videos[videos.length - 1] : null
 
     return NextResponse.json({
@@ -102,7 +110,6 @@ export async function GET(req: NextRequest) {
       nextCursor: lastVideo?.created_at || null,
       nextCursorId: lastVideo?.id || null,
       hasMore: videos.length === limit,
-      // Prefetch hint: client can start loading next batch in background
       prefetchHint: videos.length === limit ? 'prefetch-next' : null,
       cached: feedCache.get(cacheKey) !== undefined,
     }, {

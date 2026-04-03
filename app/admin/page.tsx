@@ -3,6 +3,16 @@ import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
+interface Report {
+  id: string
+  reason: string
+  video_id: string
+  created_at: string
+  reporter?: {
+    username: string
+  }
+}
+
 export default async function AdminPanel() {
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -10,11 +20,12 @@ export default async function AdminPanel() {
   if (!session) redirect('/')
 
   // FETCH DES REPORTS DEPUIS LA TABLE SECURISEE
-  // Graçe à la RLS "Admins seulement", cela échouera si le middleware est paré.
-  const { data: reports, error } = await supabase
+  const { data, error } = await supabase
     .from('reports')
     .select('*, reporter:users(username), video:videos(title)')
     .order('created_at', { ascending: false })
+
+  const reports = data as unknown as Report[]
 
   if (error) {
     return <div className="p-8 text-white min-h-screen bg-black">Erreur de chargement des signalements ou droit refusé.</div>

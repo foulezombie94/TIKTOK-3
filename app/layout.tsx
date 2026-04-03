@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import BottomNav from "@/components/Navigation/BottomNav";
 import AuthModal from "@/components/Auth/AuthModal";
@@ -10,10 +10,17 @@ import ErrorBoundary from "@/components/Providers/ErrorBoundary";
 import PerfProvider from "@/components/Providers/PerfProvider";
 import { Toaster } from "react-hot-toast";
 
-const inter = Inter({ 
-  subsets: ["latin"],
+const geistSans = localFont({
+  src: "./fonts/GeistVF.woff",
+  variable: "--font-geist-sans",
+  weight: "100 900",
   display: 'swap',
-  preload: true 
+});
+const geistMono = localFont({
+  src: "./fonts/GeistMonoVF.woff",
+  variable: "--font-geist-mono",
+  weight: "100 900",
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -48,14 +55,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="dark">
+    <html lang="fr" className="dark" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
         <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body className={`${inter.className} bg-black text-white h-[100dvh] overflow-hidden selection:bg-tiktok-pink/30 antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans bg-black text-white h-[100dvh] overflow-hidden selection:bg-tiktok-pink/30 antialiased`}>
         <ErrorBoundary>
           <PerfProvider>
           <AuthProvider>

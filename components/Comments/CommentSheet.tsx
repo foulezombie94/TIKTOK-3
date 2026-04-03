@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store/useStore'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
+import { sanitizeText } from '@/lib/sanitize'
 
 interface Comment {
   id: string
@@ -72,7 +73,7 @@ export default function CommentSheet({ videoId, onClose }: CommentSheetProps) {
         .insert({
           video_id: videoId,
           user_id: currentUser.id,
-          content: newComment.trim(),
+          content: sanitizeText(newComment),
         })
         .select(`*, users (username, avatar_url)`)
         .single()
@@ -92,7 +93,7 @@ export default function CommentSheet({ videoId, onClose }: CommentSheetProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-none">
+    <div className="fixed inset-0 z-[160] flex flex-col justify-end pointer-events-none">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
