@@ -5,7 +5,7 @@ import { Heart, MessageCircle, Bookmark, Share2, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store/useStore'
 import toast from 'react-hot-toast'
-import { FeedVideo } from '@/app/page'
+import { FeedVideo } from '@/types/video'
 import ShareSheet from './ShareSheet'
 
 interface SidebarActionsProps {
@@ -27,6 +27,11 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
   const [bookmarksCount, setBookmarksCount] = useState(video.bookmarks_count ?? video.bookmarks?.[0]?.count ?? 0)
   const [isShareOpen, setIsShareOpen] = useState(false)
   
+  // 🛡️ Normalisation robuste de l'utilisateur
+  const userData = Array.isArray(video.users) ? video.users[0] : video.users
+  const userAvatar = userData?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
+  const username = userData?.username || 'user'
+  
   const followedUsers = useStore((s: any) => s.followedUsers)
   const setFollowedUser = useStore((s: any) => s.setFollowedUser)
   
@@ -42,7 +47,7 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
 
     const newLikedState = !isLiked
     setIsLiked(newLikedState)
-    setLikesCount(prev => newLikedState ? prev + 1 : prev - 1)
+    setLikesCount((prev: number) => newLikedState ? prev + 1 : prev - 1)
 
     try {
       if (newLikedState) {
@@ -52,7 +57,7 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
       }
     } catch {
       setIsLiked(!newLikedState)
-      setLikesCount(prev => !newLikedState ? prev + 1 : prev - 1)
+      setLikesCount((prev: number) => !newLikedState ? prev + 1 : prev - 1)
     }
   }
 
@@ -63,7 +68,7 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
     }
     const newState = !isSaved
     setIsSaved(newState)
-    setBookmarksCount(prev => newState ? prev + 1 : prev - 1)
+    setBookmarksCount((prev: number) => newState ? prev + 1 : prev - 1)
 
     try {
       let result;
@@ -86,7 +91,7 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
     } catch (err: any) {
       // On ne revert que si ce n'est pas un problème de doublon
       setIsSaved(!newState)
-      setBookmarksCount(prev => !newState ? prev + 1 : prev - 1)
+      setBookmarksCount((prev: number) => !newState ? prev + 1 : prev - 1)
       toast.error(`Action impossible: ${err.message}`)
     }
   }
@@ -118,7 +123,7 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
       {/* Profile */}
       <div className="relative mb-2">
         <div className="w-12 h-12 rounded-full border-2 border-white overflow-hidden bg-zinc-800">
-          <img src={video.users?.avatar_url} alt={video.users?.username} className="w-full h-full object-cover" />
+          <img src={userAvatar} alt={username} className="w-full h-full object-cover" />
         </div>
         {!isFollowing && currentUserId !== video.user_id && (
            <button 

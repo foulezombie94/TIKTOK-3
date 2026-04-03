@@ -20,10 +20,14 @@ interface ShareSheetProps {
 }
 
 export default function ShareSheet({ isOpen, onClose, video, mode = 'video' }: ShareSheetProps) {
+  // 🛡️ Normalisation robuste de l'utilisateur (Gestion array vs object de la DB)
+  const userData = Array.isArray(video.users) ? video.users[0] : video.users
+  const username = userData?.username || 'Utilisateur'
+
   const shareUrl = typeof window !== 'undefined' 
     ? (mode === 'video' 
-        ? `${window.location.origin}/v/${video.slug || video.id}`
-        : `${window.location.origin}/profile/${video.users?.username}`)
+        ? `${window.location.origin}/@${username}/video/${video.slug || video.id}`
+        : `${window.location.origin}/@${username}`)
     : ''
 
   // -- 🛡️ UX: Scroll Block & Escape Key
@@ -67,10 +71,10 @@ export default function ShareSheet({ isOpen, onClose, video, mode = 'video' }: S
     if (navigator.share) {
       try {
         await navigator.share({
-          title: mode === 'video' ? `Vidéo de @${video.users?.username}` : `Profil de @${video.users?.username}`,
+          title: mode === 'video' ? `Vidéo de @${username}` : `Profil de @${username}`,
           text: mode === 'video' 
             ? (video.caption || 'Regarde cette vidéo sur TikTok Clone')
-            : `Découvre le profil de @${video.users?.username} sur TikTok Clone !`,
+            : `Découvre le profil de @${username} sur TikTok Clone !`,
           url: shareUrl,
         })
         onClose()

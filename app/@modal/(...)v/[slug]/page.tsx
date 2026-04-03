@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabase'
 import VideoModal from '@/components/VideoFeed/VideoModal'
-import { FeedVideo } from '@/types/video'
 import { notFound } from 'next/navigation'
 
 interface InterceptedVideoPageProps {
@@ -12,55 +11,46 @@ interface InterceptedVideoPageProps {
 export default async function InterceptedVideoPage({ params }: InterceptedVideoPageProps) {
   const { slug } = params
 
-  // 1. Cherche la vidéo par son slug (ou ID si c'est un UUID)
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
-  
-  let query = supabase
+  // 1. Double tentative (Slug d'abord, puis UUID)
+  // Recherche par l'identifiant le plus probable (Slug à 8 caractères)
+  const { data: videoData, error } = await supabase
     .from('videos')
     .select(`
       id, video_url, caption, music_name, views_count, 
-      likes_count, comments_count, bookmarks_count, slug,
-      users:user_id (
-        id, username, display_name, avatar_url, bio
-      )
+      likes_count, comments_count, bookmarks_count, slug, thumbnail_url,
+      users:user_id (id, username, display_name, avatar_url, bio)
     `)
+    .eq('slug', slug)
+    .single()
 
-  if (isUUID) {
-    query = query.eq('id', slug)
-  } else {
-    query = query.eq('slug', slug)
-  }
+  let finalVideoData = videoData
 
-  const { data: videoData, error } = await query.single()
+  // 2. Fallback UUID si pas trouvé par slug
+  if (error || !finalVideoData) {
+    // SECURITY: Regex UUID v4 standard (modérément souple pour capter tous les IDs)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
+    
+    if (!isUUID) return null // Pas d'interception si pas d'ID valide
 
-  if (error || !videoData) {
-    // Si pas trouvé par slug, on tente par ID (fallback si slug n'était pas identifié comme UUID mais l'est peut-être)
     const { data: fallbackData } = await supabase
       .from('videos')
       .select(`
         id, video_url, caption, music_name, views_count, 
-        likes_count, comments_count, bookmarks_count, slug,
-        users:user_id (
-          id, username, display_name, avatar_url, bio
-        )
+        likes_count, comments_count, bookmarks_count, slug, thumbnail_url,
+        users:user_id (id, username, display_name, avatar_url, bio)
       `)
       .eq('id', slug)
       .single()
     
-    if (!fallbackData) {
-      return null // On ne montre pas d'erreur, on laisse l'app continuer
-    }
+    if (!fallbackData) return null
 
-    const video = {
-      ...fallbackData,
-      users: Array.isArray(fallbackData.users) ? fallbackData.users[0] : fallbackData.users
-    }
-    return <VideoModal video={video} />
+    finalVideoData = fallbackData
   }
 
+  // 3. Normalisation des données utilisateur
   const video = {
-    ...videoData,
-    users: Array.isArray(videoData.users) ? videoData.users[0] : videoData.users
+    ...finalVideoData,
+    users: Array.isArray(finalVideoData.users) ? finalVideoData.users[0] : finalVideoData.users
   }
 
   return <VideoModal video={video} />

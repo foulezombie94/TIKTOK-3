@@ -21,4 +21,11 @@ export interface FeedVideo {
   user_has_liked?: boolean
   user_has_saved?: boolean
   user_is_following?: boolean
+  // Support legacy/RPC calculated fields
+  _userHasLiked?: boolean
+  _userHasSaved?: boolean
+  _userIsFollowing?: boolean
+  likes?: { count: number }[]
+  bookmarks?: { count: number }[]
+  comments?: { count: number }[]
 }
