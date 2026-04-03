@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store/useStore'
@@ -16,26 +17,14 @@ const CommentSheet = dynamic(() => import('@/components/Comments/CommentSheet'),
   loading: () => <div className="fixed inset-0 bg-black/50 z-[150] animate-pulse" />
 })
 
+import { FeedVideo } from '@/types/video'
+
 interface ProfileUser {
   id: string
   username: string
   display_name: string
   avatar_url: string
   bio: string
-}
-
-interface Video {
-  id: string
-  video_url: string
-  views_count: number
-  caption?: string
-  music_name?: string
-  likes_count?: number
-  comments_count?: number
-  bookmarks_count?: number
-  user_has_liked?: boolean
-  user_has_saved?: boolean
-  slug?: string
 }
 
 enum Tab {
@@ -57,10 +46,10 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({ followers: 0, following: 0, likes: 0, bookmarks: 0 })
-  const [videos, setVideos] = useState<Video[]>([])
+  const [videos, setVideos] = useState<FeedVideo[]>([])
   const [activeTab, setActiveTab] = useState<Tab>(Tab.POSTS)
   const [isFollowing, setIsFollowing] = useState(false)
-  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null)
+  const [selectedVideo, setSelectedVideo] = useState<FeedVideo | null>(null)
   const [isTogglePending, setIsTogglePending] = useState(false)
   const [commentVideoId, setCommentVideoId] = useState<string | null>(null)
   const [isShareOpen, setIsShareOpen] = useState(false)
@@ -157,7 +146,7 @@ export default function ProfilePage() {
           user_has_liked: (data.user_has_liked as any)?.some((l: any) => l.user_id === viewerId),
           user_has_saved: (data.user_has_saved as any)?.some((b: any) => b.user_id === viewerId)
         }
-        setSelectedVideo(formatted as unknown as Video)
+        setSelectedVideo(formatted as unknown as FeedVideo)
       }
     }
 
@@ -340,9 +329,9 @@ export default function ProfilePage() {
 
       <div className="grid grid-cols-3 gap-0.5">
          {videos.map(v => (
-            <div 
+            <Link 
                key={v.id} 
-               onClick={() => setSelectedVideo(v)}
+               href={`/v/${v.slug || v.id}`}
                className="aspect-[3/4] bg-zinc-900 relative group overflow-hidden border border-zinc-800/10 cursor-pointer"
             >
                <video 
@@ -354,7 +343,7 @@ export default function ProfilePage() {
                   {v.views_count}
                </div>
                <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
+            </Link>
          ))}
          {videos.length === 0 && !loading && (
             <div className="col-span-3 py-16 text-center text-zinc-500 text-sm">
@@ -363,75 +352,7 @@ export default function ProfilePage() {
          )}
       </div>
 
-      {selectedVideo && profile && (
-         <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center animate-in fade-in zoom-in-95 duration-300 backdrop-blur-xl">
-            <button 
-               onClick={() => {
-                  setSelectedVideo(null)
-                  setCommentVideoId(null)
-               }}
-               className="absolute top-6 left-6 z-[120] p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-xl transition-all hover:scale-110 active:scale-95 border border-white/10"
-            >
-               <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="white" className="w-6 h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-               </svg>
-            </button>
-            
-            <div className="relative w-full h-full flex flex-col md:flex-row items-center justify-center max-w-[1000px] mx-auto">
-               <div className="relative w-full h-full md:w-[450px] bg-zinc-950 flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                  <video 
-                     src={selectedVideo.video_url} 
-                     className="w-full h-full object-contain"
-                     autoPlay 
-                     loop 
-                     controls
-                  />
-                  
-                  <div className="absolute bottom-6 left-4 right-16 text-white drop-shadow-xl z-10 pointer-events-none">
-                     <p className="font-bold text-[17px] mb-1">@{profile.username}</p>
-                     <p className="text-sm opacity-90 line-clamp-2 mb-2">{selectedVideo.caption}</p>
-                     <div className="flex items-center gap-2 opacity-80">
-                        <Play className="w-3 h-3 fill-white" />
-                        <span className="text-xs font-semibold">{selectedVideo.music_name}</span>
-                     </div>
-                  </div>
-               </div>
-
-               <div className="absolute right-2 bottom-[100px] md:relative md:right-0 md:bottom-0 md:ml-4 flex flex-col items-center justify-end md:justify-center p-4">
-                  <SidebarActions 
-                    video={{
-                      id: selectedVideo.id,
-                      user_id: profile.id,
-                      video_url: selectedVideo.video_url,
-                      caption: selectedVideo.caption || '',
-                      music_name: selectedVideo.music_name || 'Original',
-                      views_count: selectedVideo.views_count,
-                      likes_count: selectedVideo.likes_count || 0,
-                      comments_count: selectedVideo.comments_count || 0,
-                      bookmarks_count: selectedVideo.bookmarks_count || 0,
-                      user_has_liked: selectedVideo.user_has_liked || false,
-                      user_has_saved: selectedVideo.user_has_saved || false,
-                      slug: selectedVideo.slug,
-                      created_at: '',
-                      users: {
-                        id: profile.id,
-                        username: profile.username,
-                        display_name: profile.display_name,
-                        avatar_url: profile.avatar_url
-                      }
-                    } as any}
-                    currentUserId={currentUser?.id || null}
-                    onCommentClick={() => setCommentVideoId(selectedVideo.id)}
-                  />
-               </div>
-            </div>
-
-            <div className="absolute inset-0 -z-10" onClick={() => {
-               setSelectedVideo(null)
-               setCommentVideoId(null)
-            }} />
-         </div>
-      )}
+      {/* Modal is now handled by Parallel & Intercepting Routes (@modal slot in layout) */}
 
       <AnimatePresence>
         {commentVideoId && (

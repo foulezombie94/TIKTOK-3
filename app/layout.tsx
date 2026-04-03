@@ -51,8 +51,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children,
+  modal,
 }: Readonly<{
   children: React.ReactNode;
+  modal: React.ReactNode;
 }>) {
   return (
     <html lang="fr" className="dark" suppressHydrationWarning>
@@ -81,10 +83,13 @@ export default function RootLayout({
              />
              <AuthGuard>
                 <NotifProvider>
-                   <main className="h-full w-full max-w-[500px] mx-auto relative overflow-hidden bg-black shadow-2xl shadow-white/5">
-                     {children}
-                   </main>
-                   <BottomNav />
+                   <div className="h-full w-full relative flex flex-col items-center justify-center">
+                     <main className="h-full w-full max-w-[500px] relative overflow-hidden bg-black shadow-2xl shadow-white/5">
+                       {children}
+                     </main>
+                     <BottomNav />
+                   </div>
+                   {modal}
                    <AuthModal />
                 </NotifProvider>
              </AuthGuard>
@@ -95,3 +100,4 @@ export default function RootLayout({
     </html>
   );
 }
+

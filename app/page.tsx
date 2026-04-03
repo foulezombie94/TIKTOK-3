@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import VideoPlayer from '@/components/VideoFeed/VideoPlayer'
 import SidebarActions from '@/components/VideoFeed/SidebarActions'
@@ -15,41 +16,13 @@ const CommentSheet = dynamic(() => import('@/components/Comments/CommentSheet'),
   loading: () => <div className="fixed inset-0 bg-black/50 z-50 animate-pulse" />
 })
 
-export interface FeedVideo {
-  id: string
-  user_id: string
-  video_url: string
-  thumbnail_url?: string
-  caption: string
-  music_name: string
-  views_count: number
-  created_at: string
-  users: {
-    id: string
-    username: string
-    display_name: string
-    avatar_url: string
-  }
-  likes_count: number
-  comments_count: number
-  bookmarks_count: number
-  user_has_liked?: boolean
-  user_has_saved?: boolean
-  user_is_following?: boolean
-  // Support fallback pour l'ancienne structure si besoin
-  likes?: { count: number }[]
-  comments?: { count: number }[]
-  bookmarks?: { count: number }[]
-  _userHasLiked?: boolean
-  _userHasSaved?: boolean
-  _userIsFollowing?: boolean
-}
+import { FeedVideo } from '@/types/video'
 
 export default function HomePage() {
+  const router = useRouter()
   const [videos, setVideos] = useState<FeedVideo[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [commentVideoId, setCommentVideoId] = useState<string | null>(null)
   
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [nextCursorId, setNextCursorId] = useState<string | null>(null)
@@ -67,7 +40,6 @@ export default function HomePage() {
   const WINDOW_SIZE = 1 
 
   const fetchVideosBatch = useCallback(async (cursor: string | null, cursorId: string | null) => {
-    // Phase Production : Appel RPC par Curseur (Déterministe et performant)
     const { data: vidsData, error } = await supabase.rpc('get_fyp_videos', {
       p_user_id: currentUser?.id || '00000000-0000-0000-0000-000000000000',
       p_cursor: cursor,
@@ -140,7 +112,6 @@ export default function HomePage() {
     if (inView) {
       setActiveIndex(index)
       
-      // Valider la vue après X secondes
       viewTimeoutsRef.current[videoId] = setTimeout(() => {
          trackVideoView(videoId);
       }, VIEW_DURATION_MS);
@@ -149,7 +120,6 @@ export default function HomePage() {
         loadMoreVideos()
       }
     } else {
-      // Annuler si l'utilisateur scrolle trop vite
       if (viewTimeoutsRef.current[videoId]) {
         clearTimeout(viewTimeoutsRef.current[videoId]);
       }
@@ -193,7 +163,7 @@ export default function HomePage() {
                   <VideoOverlay video={video} />
                   <SidebarActions
                     video={video}
-                    onCommentClick={() => setCommentVideoId(video.id)}
+                    onCommentClick={() => router.push(`/v/${video.slug || video.id}`)}
                     currentUserId={currentUser?.id || null}
                   />
                 </>
@@ -204,15 +174,7 @@ export default function HomePage() {
           )
         })}
       </div>
-
-      <AnimatePresence>
-        {commentVideoId && (
-          <CommentSheet
-            videoId={commentVideoId}
-            onClose={() => setCommentVideoId(null)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   )
 }
+
