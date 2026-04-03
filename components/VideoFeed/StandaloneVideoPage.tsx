@@ -29,7 +29,7 @@ export default function StandaloneVideoPage({ initialVideo }: StandaloneVideoPag
     console.log("🚀 [ELITE] Vidéo reçue du serveur :", initialVideo?.id)
   }, [initialVideo])
 
-  const [videos, setVideos] = useState<FeedVideo[]>([initialVideo])
+  const [videos, setVideos] = useState<FeedVideo[]>(() => [initialVideo])
   const [activeIndex, setActiveIndex] = useState(0)
   const [nextCursor, setNextCursor] = useState<string | null>(initialVideo?.created_at || null)
   const [nextCursorId, setNextCursorId] = useState<string | null>(initialVideo?.id || null)
@@ -37,14 +37,19 @@ export default function StandaloneVideoPage({ initialVideo }: StandaloneVideoPag
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [commentVideoId, setCommentVideoId] = useState<string | null>(null)
 
-  // 🔄 [FIX ELITE] : Mise à jour de l'état si la prop change (Navigation SPA)
+  // 🔄 [FIX ELITE] : Synchro stricte + Reset Scroll (Navigation SPA)
   useEffect(() => {
     if (initialVideo?.id && initialVideo.id !== videos[0]?.id) {
+      console.log("🎯 [ELITE] Focus sur la nouvelle vidéo :", initialVideo.id)
       setVideos([initialVideo])
       setActiveIndex(0)
       setNextCursor(initialVideo.created_at)
       setNextCursorId(initialVideo.id)
       setHasMore(true)
+      
+      // Remise à zéro du scroll
+      const container = document.getElementById('video-scroll-container')
+      if (container) container.scrollTop = 0
     }
   }, [initialVideo?.id])
 
@@ -110,6 +115,7 @@ export default function StandaloneVideoPage({ initialVideo }: StandaloneVideoPag
 
       {/* 🎬 Main Video Feed Section (Left/Full) */}
       <div 
+        id="video-scroll-container"
         className="relative flex-1 h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide bg-zinc-950"
       >
         {videos.map((video, index) => (

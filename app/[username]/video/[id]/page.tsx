@@ -17,6 +17,9 @@ interface VideoPageProps {
  * generateMetadata et la Page partageront les données sans doubler les appels DB.
  */
 const getCachedVideo = cache(async (id: string) => {
+  // 🛡️ Nettoyage pour éviter les espaces invisibles (Elite Grade)
+  const cleanId = id.trim()
+
   return await supabase
     .from('videos')
     .select(`
@@ -24,7 +27,8 @@ const getCachedVideo = cache(async (id: string) => {
       likes_count, comments_count, bookmarks_count, slug, thumbnail_url,
       users:user_id (id, username, display_name, avatar_url, bio)
     `)
-    .or(`slug.eq.${id},id.eq.${id}`)
+    // .or est sensible à la casse. On entoure les valeurs de guillemets pour la sécurité.
+    .or(`slug.eq."${cleanId}",id.eq."${cleanId}"`)
     .single()
 })
 
@@ -68,7 +72,12 @@ export default async function OfficialTikTokVideoPage({ params }: VideoPageProps
 
   const { data: videoData, error } = await getCachedVideo(id)
 
-  if (error || !videoData) return redirect('/')
+  // 🛡️ CRITIQUE : Change le redirect('/') en notFound() pour le debug.
+  // Si tu vois 404, c'est que Supabase ne trouve pas cet ID/Slug (vérifie la casse).
+  if (error || !videoData) {
+    console.error("❌ Vidéo non trouvée pour l'ID :", id)
+    return notFound()
+  }
 
   // Normalisation
   const video = {
