@@ -25,6 +25,12 @@ export default function VideoDetail({ video, onClose, isModal = false }: VideoDe
 
   if (!video) return null
 
+  // 🛡️ Normalisation universelle (Flat RPC + Nested Supabase + Array Join)
+  const userData = Array.isArray(video.users) ? video.users[0] : (video.users || null)
+  const username = video.username || userData?.username || 'user'
+  const userAvatar = video.avatar_url || userData?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
+  const displayName = video.display_name || userData?.display_name || 'Utilisateur'
+
   return (
     <div className={`relative w-full h-full flex flex-col md:flex-row bg-zinc-950 overflow-hidden ${isModal ? 'md:rounded-2xl border border-white/5 shadow-[0_0_100px_rgba(0,0,0,0.5)]' : ''}`}>
       
@@ -53,7 +59,7 @@ export default function VideoDetail({ video, onClose, isModal = false }: VideoDe
 
       {/* 🎬 Video Section (Left) */}
       <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
-        {/* Background Blurred Image - Fixed: Secure img instead of vulnerable inline-style */}
+        {/* Background Blurred Image */}
         <img 
           src={video.thumbnail_url || video.video_url}
           className="absolute inset-0 w-full h-full object-cover opacity-20 blur-[100px] scale-150 pointer-events-none"
@@ -72,7 +78,7 @@ export default function VideoDetail({ video, onClose, isModal = false }: VideoDe
         {/* Mobile Overlay Actions (Visible only on mobile) */}
         <div className="absolute right-4 bottom-10 md:hidden z-20">
            <SidebarActions 
-              video={video}
+              video={video as any}
               currentUserId={currentUser?.id}
               onCommentClick={() => setCommentVideoId(video.id)}
            />
@@ -84,21 +90,21 @@ export default function VideoDetail({ video, onClose, isModal = false }: VideoDe
         <div className="p-6 border-b border-white/5 bg-zinc-900/20 backdrop-blur-md">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <Link href={`/profile/${video.users?.username}`} className="relative shrink-0">
+              <Link href={`/@${username}`} className="relative shrink-0">
                 <img 
-                  src={video.users?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'} 
+                  src={userAvatar} 
                   className="w-12 h-12 rounded-full border border-white/10 hover:opacity-80 transition-opacity"
-                  alt={video.users?.username}
+                  alt={username}
                 />
                 <div className="absolute -bottom-1 -right-1 bg-tiktok-pink rounded-full p-0.5 border-2 border-zinc-950">
                   <UserPlus className="w-3 h-3 text-white" fill="currentColor" />
                 </div>
               </Link>
               <div>
-                <Link href={`/profile/${video.users?.username}`}>
-                  <h2 className="font-bold text-lg hover:underline transition decoration-2 underline-offset-4 tracking-tight">@{video.users?.username}</h2>
+                <Link href={`/@${username}`}>
+                  <h2 className="font-bold text-lg hover:underline transition decoration-2 underline-offset-4 tracking-tight">@{username}</h2>
                 </Link>
-                <p className="text-sm text-zinc-400 font-medium truncate max-w-[180px]">{video.users?.display_name}</p>
+                <p className="text-sm text-zinc-400 font-medium truncate max-w-[180px]">{displayName}</p>
               </div>
             </div>
             <button className="bg-tiktok-pink text-white px-7 py-2 rounded-full font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-tiktok-pink/20">
