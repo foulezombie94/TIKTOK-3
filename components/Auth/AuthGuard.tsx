@@ -27,6 +27,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const isPublicRoute = useMemo(() => {
     const publicPatterns = [
       /^\/$/,                       // Accueil
+      /^\/login$/,                  // Page de Connexion
       /^\/@[a-zA-Z0-9._]+$/,        // Profils (Ex: /@user)
       /^\/@[a-zA-Z0-9._]+\/video\//, // Vidéos (Ex: /@user/video/123)
       /^\/v\//,                     // Legacy Redirects
