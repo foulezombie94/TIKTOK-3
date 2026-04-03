@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import StandaloneVideoPage from '@/components/VideoFeed/StandaloneVideoPage'
 import { Metadata, ResolvingMetadata } from 'next'
 import { cache } from 'react'
+import Link from 'next/link'
 
 interface VideoPageProps {
   params: {
@@ -101,12 +102,12 @@ export default async function OfficialTikTokVideoPage({ params }: VideoPageProps
               Vérifiez bien la casse (Majuscules/Minuscules) du slug si vous l'avez tapé à la main.
             </p>
           </div>
-          <button 
-            onClick={() => redirect('/')}
-            className="w-full mt-8 bg-white text-black font-bold py-3 rounded-full hover:bg-zinc-200 transition-all active:scale-95"
+          <Link 
+            href="/"
+            className="w-full mt-8 bg-white text-black font-bold py-3 rounded-full hover:bg-zinc-200 transition-all active:scale-95 flex items-center justify-center"
           >
             Retour à l'accueil
-          </button>
+          </Link>
         </div>
       </div>
     )
