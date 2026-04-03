@@ -8,8 +8,9 @@ interface VideoOverlayProps {
 }
 
 function VideoOverlay({ video }: VideoOverlayProps) {
-  const userData = Array.isArray(video.users) ? video.users[0] : video.users
-  const username = userData?.username || 'user'
+  // 🛡️ Normalisation universelle (Flat RPC + Nested Supabase + Array Join)
+  const userData = Array.isArray(video.users) ? video.users[0] : (video.users || null)
+  const username = video.username || userData?.username || 'user'
 
   return (
     <div className="absolute bottom-20 left-4 right-16 z-20 flex flex-col gap-2 pointer-events-none text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">

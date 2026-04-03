@@ -27,10 +27,10 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
   const [bookmarksCount, setBookmarksCount] = useState(video.bookmarks_count ?? video.bookmarks?.[0]?.count ?? 0)
   const [isShareOpen, setIsShareOpen] = useState(false)
   
-  // 🛡️ Normalisation robuste de l'utilisateur
-  const userData = Array.isArray(video.users) ? video.users[0] : video.users
-  const userAvatar = userData?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
-  const username = userData?.username || 'user'
+  // 🛡️ Normalisation universelle (Flat RPC + Nested Supabase + Array Join)
+  const userData = Array.isArray(video.users) ? video.users[0] : (video.users || null)
+  const username = video.username || userData?.username || 'user'
+  const userAvatar = video.avatar_url || userData?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
   
   const followedUsers = useStore((s: any) => s.followedUsers)
   const setFollowedUser = useStore((s: any) => s.setFollowedUser)

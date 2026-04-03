@@ -11,6 +11,8 @@ interface ShareSheetProps {
   video: {
     id: string
     slug?: string
+    username?: string
+    thumbnail_url?: string
     users?: {
       username: string
     }
@@ -20,9 +22,9 @@ interface ShareSheetProps {
 }
 
 export default function ShareSheet({ isOpen, onClose, video, mode = 'video' }: ShareSheetProps) {
-  // 🛡️ Normalisation robuste de l'utilisateur (Gestion array vs object de la DB)
-  const userData = Array.isArray(video.users) ? video.users[0] : video.users
-  const username = userData?.username || 'Utilisateur'
+  // 🛡️ Normalisation universelle (Flat RPC + Nested Supabase + Array Join)
+  const userData = Array.isArray(video.users) ? video.users[0] : (video.users || null)
+  const username = video.username || userData?.username || 'Utilisateur'
 
   const shareUrl = typeof window !== 'undefined' 
     ? (mode === 'video' 

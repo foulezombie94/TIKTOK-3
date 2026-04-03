@@ -8,13 +8,17 @@ export interface FeedVideo {
   views_count: number
   created_at: string
   slug: string
-  users: {
+  users?: {
     id: string
     username: string
     display_name: string
     avatar_url: string
     bio?: string
   }
+  // 🛡️ [Support Flat RPC] : Propriétés à la racine renvoyées par get_fyp_videos
+  username?: string
+  display_name?: string
+  avatar_url?: string
   likes_count: number
   comments_count: number
   bookmarks_count: number

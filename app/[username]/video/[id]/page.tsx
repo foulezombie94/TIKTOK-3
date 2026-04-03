@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: VideoPageProps, _parent: Reso
 
   if (!data) return { title: 'Vidéo introuvable | TikTok Clone' }
 
-  const user = Array.isArray(data.users) ? data.users[0] : data.users
+  const user = Array.isArray(data.users) ? data.users[0] : (data.users as any)
   const usernameFromDb = `@${user?.username || 'Utilisateur'}`
   
   const title = `Vidéo de ${usernameFromDb} | TikTok Clone`
