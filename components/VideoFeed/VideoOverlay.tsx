@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Music } from 'lucide-react'
+import Link from 'next/link'
 
 interface VideoOverlayProps {
   video: any
@@ -14,7 +15,9 @@ function VideoOverlay({ video }: VideoOverlayProps) {
 
   return (
     <div className="absolute bottom-20 left-4 right-16 z-20 flex flex-col gap-2 pointer-events-none text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
-      <h3 className="font-semibold text-[17px] drop-shadow-md">@{username}</h3>
+      <Link href={`/@${username}`} className="pointer-events-auto">
+        <h3 className="font-semibold text-[17px] drop-shadow-md hover:underline decoration-1 underline-offset-2">@{username}</h3>
+      </Link>
       <p className="text-[15px] font-normal leading-tight line-clamp-3 drop-shadow-md">
         {(video.caption || '').split(' ').map((word: string, i: number) => {
           if (word.startsWith('#')) {

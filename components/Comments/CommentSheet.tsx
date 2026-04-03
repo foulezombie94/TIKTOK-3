@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { X, Send, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store/useStore'
 import toast from 'react-hot-toast'
@@ -46,16 +47,20 @@ const CommentList = ({
       </div>
     ) : (
       comments.map((comment) => (
-        <div key={comment.id} className="flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <img
-            src={comment.users?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-            alt="avatar"
-            className="w-8 h-8 rounded-full border border-white/10 object-cover shadow-sm shrink-0"
-          />
+        <div key={comment.id} className="flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 group/comment">
+          <Link href={`/@${comment.users?.username}`} className="shrink-0 active:scale-90 transition-transform">
+            <img
+              src={comment.users?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
+              alt="avatar"
+              className="w-8 h-8 rounded-full border border-white/10 object-cover shadow-sm shrink-0"
+            />
+          </Link>
           <div className="flex-1 min-w-0">
-            <span className="text-xs text-gray-400 font-bold mb-0.5 block hover:underline cursor-pointer">
-              {comment.users?.username}
-            </span>
+            <Link href={`/@${comment.users?.username}`} className="w-fit block">
+              <span className="text-xs text-gray-400 font-bold mb-0.5 block hover:underline cursor-pointer">
+                {comment.users?.username}
+              </span>
+            </Link>
             <p className="text-[13px] text-white/90 leading-relaxed break-words whitespace-pre-wrap">
               {comment.content}
             </p>

@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { Heart, MessageCircle, Bookmark, Share2, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store/useStore'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { FeedVideo } from '@/types/video'
 import ShareSheet from './ShareSheet'
@@ -122,9 +123,11 @@ const SidebarActions = ({ video, onCommentClick, currentUserId }: SidebarActions
     <div className="absolute right-2 bottom-20 flex flex-col items-center gap-5 z-20">
       {/* Profile */}
       <div className="relative mb-2">
-        <div className="w-12 h-12 rounded-full border-2 border-white overflow-hidden bg-zinc-800">
-          <img src={userAvatar} alt={username} className="w-full h-full object-cover" />
-        </div>
+        <Link href={`/@${username}`} className="block active:scale-95 transition-transform">
+          <div className="w-12 h-12 rounded-full border-2 border-white overflow-hidden bg-zinc-800">
+            <img src={userAvatar} alt={username} className="w-full h-full object-cover" />
+          </div>
+        </Link>
         {!isFollowing && currentUserId !== video.user_id && (
            <button 
              onClick={handleFollow}
