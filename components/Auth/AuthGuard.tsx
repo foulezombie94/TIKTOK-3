@@ -23,15 +23,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const setIsAuthLoading = useStore((s) => s.setIsAuthLoading)
   const setIntendedPath = useStore((s: any) => s.setIntendedPath)
 
-  // 📝 WHITELIST DES ROUTES PUBLIQUES (REGEX)
+  // 📝 WHITELIST DES ROUTES PUBLIQUES (STRICTE)
   const isPublicRoute = useMemo(() => {
     const publicPatterns = [
-      /^\/$/,                       // Accueil
-      /^\/login$/,                  // Page de Connexion
-      /^\/@[a-zA-Z0-9._]+$/,        // Profils (Ex: /@user)
-      /^\/@[a-zA-Z0-9._]+\/video\//, // Vidéos (Ex: /@user/video/123)
-      /^\/v\//,                     // Legacy Redirects
-      /^\/search/,                  // Recherche
+      /^\/login$/,                  // Seule la page de connexion est publique
     ]
     return publicPatterns.some(pattern => pattern.test(pathname))
   }, [pathname])
