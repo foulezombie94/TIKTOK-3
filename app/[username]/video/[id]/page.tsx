@@ -83,7 +83,7 @@ export default async function OfficialTikTokVideoPage({ params }: VideoPageProps
   }
 
   return (
-    <div className="fixed inset-0 bg-black">
+    <div key={videoData.id} className="fixed inset-0 bg-black">
        <StandaloneVideoPage initialVideo={video as any} />
     </div>
   )

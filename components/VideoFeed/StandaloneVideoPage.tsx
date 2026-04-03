@@ -24,7 +24,7 @@ interface StandaloneVideoPageProps {
 export default function StandaloneVideoPage({ initialVideo }: StandaloneVideoPageProps) {
   const router = useRouter()
   
-  // 🛡️ Validation Hydratation suggérée par l'utilisateur (Principal Grade)
+  // 🛡️ Validation Hydratation suggérée par l'utilisateur
   useEffect(() => {
     console.log("🚀 [ELITE] Vidéo reçue du serveur :", initialVideo?.id)
   }, [initialVideo])
@@ -36,6 +36,17 @@ export default function StandaloneVideoPage({ initialVideo }: StandaloneVideoPag
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [commentVideoId, setCommentVideoId] = useState<string | null>(null)
+
+  // 🔄 [FIX ELITE] : Mise à jour de l'état si la prop change (Navigation SPA)
+  useEffect(() => {
+    if (initialVideo?.id && initialVideo.id !== videos[0]?.id) {
+      setVideos([initialVideo])
+      setActiveIndex(0)
+      setNextCursor(initialVideo.created_at)
+      setNextCursorId(initialVideo.id)
+      setHasMore(true)
+    }
+  }, [initialVideo?.id])
 
   const currentUser = useStore((s: any) => s.currentUser)
   const VIDEOS_PER_PAGE = 6
@@ -58,29 +69,31 @@ export default function StandaloneVideoPage({ initialVideo }: StandaloneVideoPag
         return
       }
 
-      // Filtrer pour éviter les doublons (la initialVideo pourrait revenir du feed)
-      const filteredVids = data.filter((v: FeedVideo) => v.id !== initialVideo.id)
+      const filteredVids = data.filter((v: FeedVideo) => !videos.some(existing => existing.id === v.id))
       
-      setVideos(prev => [...prev, ...filteredVids])
-      const lastVideo = data[data.length - 1]
-      setNextCursor(lastVideo.created_at)
-      setNextCursorId(lastVideo.id)
+      if (filteredVids.length > 0) {
+        setVideos(prev => [...prev, ...filteredVids])
+        const lastVideo = data[data.length - 1]
+        setNextCursor(lastVideo.created_at)
+        setNextCursorId(lastVideo.id)
+      } else {
+        setHasMore(false)
+      }
     } finally {
       setIsLoadingMore(false)
     }
-  }, [currentUser, nextCursor, nextCursorId, isLoadingMore, hasMore, initialVideo.id])
+  }, [currentUser, nextCursor, nextCursorId, isLoadingMore, hasMore, videos])
 
-  // Scroll observer pour l'infini
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
-    const index = Math.round(scrollTop / clientHeight)
-    if (index !== activeIndex) setActiveIndex(index)
-
-    // Déclencher le load more quand on approche de la fin
-    if (scrollHeight - scrollTop <= clientHeight * 2) {
-      fetchMoreVideos()
+  // Notification par VideoPlayer
+  const handleInView = useCallback((index: number, inView: boolean) => {
+    if (inView) {
+      setActiveIndex(index)
+      // Charger plus si on arrive vers la fin
+      if (index >= videos.length - 2) {
+        fetchMoreVideos()
+      }
     }
-  }
+  }, [videos.length, fetchMoreVideos])
 
   if (!initialVideo) return null
 
@@ -98,13 +111,14 @@ export default function StandaloneVideoPage({ initialVideo }: StandaloneVideoPag
       {/* 🎬 Main Video Feed Section (Left/Full) */}
       <div 
         className="relative flex-1 h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide bg-zinc-950"
-        onScroll={handleScroll}
       >
         {videos.map((video, index) => (
           <div key={`${video.id}-${index}`} className="relative h-full w-full snap-start snap-always">
              <VideoPlayer 
                video={video} 
-               isActive={index === activeIndex} 
+               index={index}
+               activeIndex={activeIndex}
+               onInView={handleInView}
              />
              
              {/* Feed Overlays */}
