@@ -19,17 +19,22 @@ interface VideoPageProps {
 const getCachedVideo = cache(async (id: string) => {
   // 🛡️ Nettoyage pour éviter les espaces invisibles (Elite Grade)
   const cleanId = id.trim()
-
-  return await supabase
-    .from('videos')
-    .select(`
-      id, user_id, created_at, video_url, caption, music_name, views_count, 
-      likes_count, comments_count, bookmarks_count, slug, thumbnail_url,
-      users:user_id (id, username, display_name, avatar_url, bio)
-    `)
-    // .or est sensible à la casse. On entoure les valeurs de guillemets pour la sécurité.
-    .or(`slug.eq."${cleanId}",id.eq."${cleanId}"`)
-    .single()
+  
+  try {
+    return await supabase
+      .from('videos')
+      .select(`
+        id, user_id, created_at, video_url, caption, music_name, views_count, 
+        likes_count, comments_count, bookmarks_count, slug, thumbnail_url,
+        users:user_id (id, username, display_name, avatar_url, bio)
+      `)
+      // .or : Base62 est sensible à la casse. On entoure les valeurs de guillemets.
+      .or(`slug.eq."${cleanId}",id.eq."${cleanId}"`)
+      .single()
+  } catch (err: any) {
+    console.error("🔥 [CRITICAL DB ERROR]:", err)
+    return { data: null, error: err }
+  }
 })
 
 // 🌐 ÉTAPE 1 : SEO & Open Graph (Utilise le cache)
@@ -68,15 +73,43 @@ export default async function OfficialTikTokVideoPage({ params }: VideoPageProps
   const { username, id } = params
   
   const decodedUsername = decodeURIComponent(username)
-  if (!decodedUsername.startsWith('@')) return notFound()
+  console.log("🔍 [DEBUG SERVER] Username:", decodedUsername)
+  console.log("🔍 [DEBUG SERVER] Video ID/Slug:", id)
+
+  if (!decodedUsername.startsWith('@')) {
+    console.error("❌ Erreur : Le pseudo ne commence pas par @")
+    return notFound()
+  }
 
   const { data: videoData, error } = await getCachedVideo(id)
 
-  // 🛡️ CRITIQUE : Change le redirect('/') en notFound() pour le debug.
-  // Si tu vois 404, c'est que Supabase ne trouve pas cet ID/Slug (vérifie la casse).
+  // 🛡️ CRITIQUE : Affichage d'une vue de Debug au lieu d'une 404 brutale
   if (error || !videoData) {
-    console.error("❌ Vidéo non trouvée pour l'ID :", id)
-    return notFound()
+    console.error("❌ Vidéo non trouvée dans Supabase. Erreur :", error?.message || "Aucune donnée")
+    return (
+      <div className="fixed inset-0 bg-black flex flex-col items-center justify-center text-white p-6 z-[200]">
+        <div className="bg-zinc-900 border border-white/10 p-8 rounded-2xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-300">
+          <h2 className="text-2xl font-bold mb-4 text-tiktok-pink">Oups ! Vidéo Introuvable</h2>
+          <div className="space-y-3 text-sm text-zinc-400">
+            <p>Le serveur a reçu ces informations :</p>
+            <ul className="list-disc list-inside bg-black/40 p-4 rounded-lg font-mono text-[11px] break-all">
+              <li>Pseudo : <span className="text-white">{decodedUsername}</span></li>
+              <li>ID/Slug : <span className="text-white">{id}</span></li>
+              <li>Erreur DB : <span className="text-tiktok-pink">{error?.message || "Non trouvé"}</span></li>
+            </ul>
+            <p className="mt-4 pt-4 border-t border-white/5 italic">
+              Vérifiez bien la casse (Majuscules/Minuscules) du slug si vous l'avez tapé à la main.
+            </p>
+          </div>
+          <button 
+            onClick={() => redirect('/')}
+            className="w-full mt-8 bg-white text-black font-bold py-3 rounded-full hover:bg-zinc-200 transition-all active:scale-95"
+          >
+            Retour à l'accueil
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // Normalisation
@@ -87,7 +120,10 @@ export default async function OfficialTikTokVideoPage({ params }: VideoPageProps
 
   // Vérification canonique
   const realUsername = `@${video.users?.username}`
+  console.log("🔍 [DEBUG SERVER] Real Username from DB:", realUsername)
+
   if (decodedUsername.toLowerCase() !== realUsername.toLowerCase()) {
+    console.log("🔄 Redirection vers l'URL canonique :", realUsername)
     return redirect(`/${realUsername}/video/${video.slug || video.id}`)
   }
 
