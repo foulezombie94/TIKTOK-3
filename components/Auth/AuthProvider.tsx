@@ -82,9 +82,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       console.log("🚀 [AUTH PROVIDER] Redirection vers le chemin d'intention :", intendedPath)
       const path = intendedPath
       setIntendedPath(null) // Nettoyage immédiat pour éviter les boucles
-      router.push(path)
+      
+      // 🛡️ [ELITE UX] : On préfère window.location.href pour un hard-refresh propre
+      // après authentification, ce qui synchronise parfaitement tous les listeners Supabase.
+      window.location.href = path
     }
-  }, [currentUser, intendedPath, router, setIntendedPath])
+  }, [currentUser, intendedPath, setIntendedPath])
 
   return <>{children}</>
 }

@@ -65,6 +65,7 @@ export const useStore = create<StoreState>()(
         isMuted: state.isMuted,
         currentUser: state.currentUser,
         followedUsers: state.followedUsers,
+        intendedPath: state.intendedPath,
       }),
     }
   )
