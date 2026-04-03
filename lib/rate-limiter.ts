@@ -33,15 +33,15 @@ interface RateLimitResult {
 // =============================================
 
 const LIMITS: Record<string, RateLimitConfig> = {
-  'api:general':     { maxTokens: 30,  refillRate: 5 },
-  'api:feed':        { maxTokens: 20,  refillRate: 4 },
-  'api:comment':     { maxTokens: 3,   refillRate: 0.1 }, // Hardcore: 1 comment per 10s
-  'api:upload':      { maxTokens: 2,   refillRate: 0.02 }, // Very strict: 1 upload per 50s
-  'api:auth':        { maxTokens: 5,   refillRate: 0.1 },
-  'api:like':        { maxTokens: 10,  refillRate: 0.5 }, // 1 like per 2s
-  'api:search':      { maxTokens: 10,  refillRate: 2 },
-  'api:gift':        { maxTokens: 5,   refillRate: 0.2 },
-  'api:webhook':     { maxTokens: 100, refillRate: 50 },
+  'api:general':     { maxTokens: 150, refillRate: 20 }, // High burst for reconnects (subway/tunnel)
+  'api:feed':        { maxTokens: 50,  refillRate: 10 },
+  'api:comment':     { maxTokens: 10,  refillRate: 0.33 }, // 1 comment per 3s
+  'api:upload':      { maxTokens: 5,   refillRate: 0.016 }, // 1 upload per 60s
+  'api:auth':        { maxTokens: 10,  refillRate: 0.2 },
+  'api:like':        { maxTokens: 50,  refillRate: 5 }, // 5 likes per second (Power users)
+  'api:search':      { maxTokens: 30,  refillRate: 5 },
+  'api:gift':        { maxTokens: 20,  refillRate: 2 },
+  'api:webhook':     { maxTokens: 200, refillRate: 100 },
 }
 
 // =============================================
