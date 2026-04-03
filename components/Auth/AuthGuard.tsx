@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { syncNetworkIdentifiers } from '@/lib/device'
 import { useStore } from '@/store/useStore'
@@ -8,30 +9,47 @@ import LoginScreen from './LoginScreen'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Music2 } from 'lucide-react'
 
+/**
+ * 🛡️ AUTHGUARD ELITE (v4)
+ * - Protège les routes sensibles.
+ * - Autorise l'accès anonyme aux routes publiques (Feed, Vidéos, Profils).
+ * - UX Fluide : L'utilisateur n'est pas bloqué sur un écran de login s'il consulte un lien partagé.
+ */
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const currentUser = useStore((s) => s.currentUser)
   const isAuthLoading = useStore((s) => s.isAuthLoading)
   const setIsAuthLoading = useStore((s) => s.setIsAuthLoading)
 
-  // 🛡️ SECURITY SYNC (Proactive Capture)
+  // 📝 WHITELIST DES ROUTES PUBLIQUES
+  const isPublicRoute = (path: string) => {
+    // Accueil (FYP)
+    if (path === '/') return true
+    // Vidéos Partagées (/@username/video/id)
+    if (path.includes('/video/')) return true
+    // Profils (/@username)
+    if (path.startsWith('/@')) return true
+    // Legacy Redirects (/v/slug)
+    if (path.startsWith('/v/')) return true
+    
+    return false
+  }
+
+  // 🛡️ SECURITY SYNC (Proactive Capture pour les bannis)
   useEffect(() => {
     if (currentUser?.id) {
-      console.log("🛡️ AuthGuard : Lancement de la capture de sécurité...");
       syncNetworkIdentifiers(supabase, currentUser.id)
     }
   }, [currentUser])
 
-  // Safety timeout: prevent getting stuck in loading state forever
+  // Safety timeout pour éviter l'écran blanc éternel
   useEffect(() => {
     if (!isAuthLoading) return
-
-    const timeout = setTimeout(() => {
-      console.warn("Auth loading too long - forcing stop")
-      setIsAuthLoading(false)
-    }, 5000)
-
+    const timeout = setTimeout(() => setIsAuthLoading(false), 5000)
     return () => clearTimeout(timeout)
   }, [isAuthLoading, setIsAuthLoading])
+
+  const showApp = currentUser || isPublicRoute(pathname)
 
   return (
     <AnimatePresence mode="wait">
@@ -64,7 +82,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </motion.div>
-      ) : !currentUser ? (
+      ) : !showApp ? (
         <motion.div
           key="login"
           initial={{ opacity: 0 }}
@@ -81,7 +99,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.4, ease: 'easeOut' }}
-          className="w-full h-full"
+          className="w-full h-full overflow-hidden"
         >
           {children}
         </motion.div>
