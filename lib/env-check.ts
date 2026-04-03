@@ -5,10 +5,15 @@
  * Throws a descriptive error if any are missing.
  */
 
-const REQUIRED_ENV_VARS = [
+// 🚨 CRITICAL: The app CRASHES in production if these are missing.
+const CRITICAL_ENV_VARS = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
+]
+
+// ⚠️ OPTIONAL/DEGRADED: The app warns but RUNS if these are missing.
+const FEATURE_ENV_VARS = [
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
   'STRIPE_SECRET_KEY',
@@ -16,23 +21,31 @@ const REQUIRED_ENV_VARS = [
 ]
 
 export function validateEnv() {
-  const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key])
+  const missingCritical = CRITICAL_ENV_VARS.filter((key) => !process.env[key])
+  const missingFeatures = FEATURE_ENV_VARS.filter((key) => !process.env[key])
 
-  if (missing.length > 0) {
+  // 1. Handle Critical Failures (Supabase)
+  if (missingCritical.length > 0) {
     const errorMsg = `
-[CRITICAL] Missing required environment variables:
-${missing.map((key) => ` - ${key}`).join('\n')}
-
-Please check your .env.local or production environmental variables.
+[CRITICAL] Missing Supabase environment variables:
+${missingCritical.map((key) => ` - ${key}`).join('\n')}
+BUILD FAILED. Please add these in Vercel.
     `.trim()
 
-    // En mode développement, on logge mais on ne bloque pas forcément tout le serveur
-    // pour éviter de frustrer les devs. En production, on crash.
     if (process.env.NODE_ENV === 'production') {
       throw new Error(errorMsg)
     } else {
       console.error(errorMsg)
     }
+  }
+
+  // 2. Handle Feature Degradation (Upstash, Stripe)
+  if (missingFeatures.length > 0) {
+    console.warn(`
+[WARNING] Some features are disabled (Missing Env Vars):
+${missingFeatures.map((key) => ` - ${key}`).join('\n')}
+Functional but unsecured/monetization-off.
+    `.trim())
   }
 }
 
