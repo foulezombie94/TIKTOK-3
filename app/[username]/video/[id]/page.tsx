@@ -18,22 +18,45 @@ interface VideoPageProps {
  * generateMetadata et la Page partageront les données sans doubler les appels DB.
  */
 const getCachedVideo = cache(async (id: string) => {
-  // 🛡️ Nettoyage pour éviter les espaces invisibles (Elite Grade)
   const cleanId = id.trim()
   
   try {
-    return await supabase
+    console.log(`🔍 [SERVER FETCH] Tentative de récupération Vidéo: ${cleanId}`)
+    
+    // 🛡️ ÉTAPE A : Récupération de la vidéo SEULE (pour éviter les échecs de jointure RLS)
+    const { data: videoData, error: videoError } = await supabase
       .from('videos')
-      .select(`
-        id, user_id, created_at, video_url, caption, music_name, views_count, 
-        likes_count, comments_count, bookmarks_count, slug, thumbnail_url,
-        users:user_id (id, username, display_name, avatar_url, bio)
-      `)
-      // .or : Base62 est sensible à la casse. On entoure les valeurs de guillemets.
+      .select('id, user_id, created_at, video_url, caption, music_name, views_count, likes_count, comments_count, bookmarks_count, slug, thumbnail_url')
       .or(`slug.eq."${cleanId}",id.eq."${cleanId}"`)
       .single()
+
+    if (videoError || !videoData) {
+      console.error("❌ [SERVER FETCH] Échec Vidéo:", videoError?.message)
+      return { data: null, error: videoError }
+    }
+
+    // 🛡️ ÉTAPE B : Récupération du profil créateur SÉPARÉMENT
+    // (Plus résilient si les permissions sur la table 'users' sont restreintes)
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, username, display_name, avatar_url, bio')
+      .eq('id', videoData.user_id)
+      .single()
+
+    if (userError) {
+      console.warn("⚠️ [SERVER FETCH] Créateur introuvable ou accès refusé:", userError.message)
+    }
+
+    return { 
+      data: { 
+        ...videoData, 
+        users: userData || { username: 'Utilisateur', display_name: 'Utilisateur TikTok' } 
+      }, 
+      error: null 
+    }
+
   } catch (err: any) {
-    console.error("🔥 [CRITICAL DB ERROR]:", err)
+    console.error("🔥 [CRITICAL SERVER ERROR]:", err)
     return { data: null, error: err }
   }
 })
