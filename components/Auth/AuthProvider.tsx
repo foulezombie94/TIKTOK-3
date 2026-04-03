@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store/useStore'
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter()
+  const currentUser = useStore((s: any) => s.currentUser)
   const setCurrentUser = useStore((s: any) => s.setCurrentUser)
   const setIsAuthLoading = useStore((s: any) => s.setIsAuthLoading)
+  const intendedPath = useStore((s: any) => s.intendedPath)
+  const setIntendedPath = useStore((s: any) => s.setIntendedPath)
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
@@ -70,6 +75,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       subscription.unsubscribe()
     }
   }, [fetchProfile, setCurrentUser, setIsAuthLoading])
+
+  // 🎯 EFFECT : REDIRECTION POST-LOGIN (Redirect-Back)
+  useEffect(() => {
+    if (currentUser && intendedPath) {
+      console.log("🚀 [AUTH PROVIDER] Redirection vers le chemin d'intention :", intendedPath)
+      const path = intendedPath
+      setIntendedPath(null) // Nettoyage immédiat pour éviter les boucles
+      router.push(path)
+    }
+  }, [currentUser, intendedPath, router, setIntendedPath])
 
   return <>{children}</>
 }

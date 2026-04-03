@@ -27,6 +27,10 @@ interface StoreState {
   // Cache global pour les abonnements
   followedUsers: Record<string, boolean>
   setFollowedUser: (userId: string, isFollowing: boolean) => void
+
+  // UX : Chemin d'intention avant login
+  intendedPath: string | null
+  setIntendedPath: (path: string | null) => void
 }
 
 export const useStore = create<StoreState>()(
@@ -51,6 +55,9 @@ export const useStore = create<StoreState>()(
         set((state) => ({
           followedUsers: { ...state.followedUsers, [userId]: isFollowing }
         })),
+
+      intendedPath: null,
+      setIntendedPath: (intendedPath) => set({ intendedPath }),
     }),
     {
       name: 'tiktok-storage',

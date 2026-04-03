@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { syncNetworkIdentifiers } from '@/lib/device'
@@ -10,30 +10,30 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Music2 } from 'lucide-react'
 
 /**
- * 🛡️ AUTHGUARD ELITE (v4)
- * - Protège les routes sensibles.
- * - Autorise l'accès anonyme aux routes publiques (Feed, Vidéos, Profils).
- * - UX Fluide : L'utilisateur n'est pas bloqué sur un écran de login s'il consulte un lien partagé.
+ * 🛡️ AUTHGUARD ELITE (v5 - Staff Grade)
+ * - Whitelist Robuste via Regex (Sécurité accrue).
+ * - Mémorisation de l'Intention (Redirect-Back UX).
+ * - Optimisation de Rendu (useMemo).
  */
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  
   const currentUser = useStore((s) => s.currentUser)
   const isAuthLoading = useStore((s) => s.isAuthLoading)
   const setIsAuthLoading = useStore((s) => s.setIsAuthLoading)
+  const setIntendedPath = useStore((s: any) => s.setIntendedPath)
 
-  // 📝 WHITELIST DES ROUTES PUBLIQUES
-  const isPublicRoute = (path: string) => {
-    // Accueil (FYP)
-    if (path === '/') return true
-    // Vidéos Partagées (/@username/video/id)
-    if (path.includes('/video/')) return true
-    // Profils (/@username)
-    if (path.startsWith('/@')) return true
-    // Legacy Redirects (/v/slug)
-    if (path.startsWith('/v/')) return true
-    
-    return false
-  }
+  // 📝 WHITELIST DES ROUTES PUBLIQUES (REGEX)
+  const isPublicRoute = useMemo(() => {
+    const publicPatterns = [
+      /^\/$/,                       // Accueil
+      /^\/@[a-zA-Z0-9._]+$/,        // Profils (Ex: /@user)
+      /^\/@[a-zA-Z0-9._]+\/video\//, // Vidéos (Ex: /@user/video/123)
+      /^\/v\//,                     // Legacy Redirects
+      /^\/search/,                  // Recherche
+    ]
+    return publicPatterns.some(pattern => pattern.test(pathname))
+  }, [pathname])
 
   // 🛡️ SECURITY SYNC (Proactive Capture pour les bannis)
   useEffect(() => {
@@ -49,7 +49,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timeout)
   }, [isAuthLoading, setIsAuthLoading])
 
-  const showApp = currentUser || isPublicRoute(pathname)
+  // 🎯 CAPTURE D'INTENTION : Mémorise la page privée si l'utilisateur est bloqué
+  useEffect(() => {
+    if (!isAuthLoading && !currentUser && !isPublicRoute) {
+      console.log("🎯 [AUTHGUARD] Mémorisation du chemin d'intention :", pathname)
+      setIntendedPath(pathname)
+    }
+  }, [pathname, currentUser, isPublicRoute, isAuthLoading, setIntendedPath])
+
+  const showApp = useMemo(() => currentUser || isPublicRoute, [currentUser, isPublicRoute])
 
   return (
     <AnimatePresence mode="wait">
