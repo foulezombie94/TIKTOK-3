@@ -23,10 +23,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const setIsAuthLoading = useStore((s) => s.setIsAuthLoading)
   const setIntendedPath = useStore((s: any) => s.setIntendedPath)
 
-  // 📝 WHITELIST DES ROUTES PUBLIQUES (STRICTE)
+  // 📝 WHITELIST DES ROUTES PUBLIQUES (HYBRIDE)
+  // On n'autorise QUE la connexion et les liens vidéos partagés.
   const isPublicRoute = useMemo(() => {
     const publicPatterns = [
-      /^\/login$/,                  // Seule la page de connexion est publique
+      /^\/login$/,                  // Connexion
+      /^\/@[a-zA-Z0-9._]+\/video\//, // Vidéos partagées
+      /^\/v\//,                     // Legacy redirects
     ]
     return publicPatterns.some(pattern => pattern.test(pathname))
   }, [pathname])
